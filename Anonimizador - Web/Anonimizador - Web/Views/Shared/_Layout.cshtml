@@ -1,0 +1,48 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] — CGR Anonimizador</title>
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+</head>
+<body>
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+        <img src="~/images/Logotipo-CGR-blanco-transp.png"
+             alt="CGR Costa Rica"
+             class="sidebar-logo" />
+        <span class="sidebar-subtitle">Anonimizador<br />de Documentos</span>
+
+        <nav class="sidebar-nav">
+            <a href="@Url.Action("Index", "Home")"
+               class="@(ViewContext.RouteData.Values["action"]?.ToString() == "Index" ? "active" : "")">
+                Anonimizar
+            </a>
+        </nav>
+        <!-- Logout al fondo del sidebar -->
+        <div style="margin-top: auto; width: 100%;">
+            <a href="@Url.Action("Logout", "Auth")"
+               style="display:block; text-align:center; color:rgba(255,255,255,0.6);
+              font-size:12px; padding:10px; text-decoration:none;">
+                Cerrar sesión
+            </a>
+        </div>
+    </aside>
+
+    <!-- LOADING OVERLAY -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-spinner"></div>
+        <span class="loading-text">Procesando documento...</span>
+    </div>
+
+    <!-- MAIN -->
+    <main class="main-content">
+        @RenderBody()
+    </main>
+
+    <script src="~/js/site.js" asp-append-version="true"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

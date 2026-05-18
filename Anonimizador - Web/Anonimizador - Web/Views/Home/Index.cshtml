@@ -1,0 +1,147 @@
+﻿@{
+    ViewData["Title"] = "Anonimizar Documento";
+}
+
+<h1 class="page-title">Anonimización de Documentos</h1>
+
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-error">@TempData["Error"]</div>
+}
+
+@if (TempData["Success"] != null)
+{
+    <div class="alert alert-success">@TempData["Success"]</div>
+}
+
+<div id="alertContainer"></div>
+
+<form id="anonymizeForm">
+    <!-- SECCIÓN 1: DOCUMENTO -->
+    <div class="form-card">
+        <p class="form-card-title">Documento a anonimizar</p>
+        <div class="form-grid">
+            <div class="form-group">
+                <label for="File">Archivo (.docx)</label>
+                <input type="file" id="File" name="documento" accept=".docx" required />
+            </div>
+            <div class="form-group">
+                <label for="UploadedBy">Subido por</label>
+                <input type="text" id="UploadedBy" name="UploadedBy"
+                       placeholder="Usuario o departamento" required />
+            </div>
+        </div>
+    </div>
+
+    <!-- SECCIÓN 2: DATOS A ANONIMIZAR -->
+    <div class="form-card">
+        <p class="form-card-title">Datos a anonimizar</p>
+        <div class="form-grid">
+            <div class="form-group">
+                <label for="FullName">Nombre completo</label>
+                <input type="text" id="FullName" name="FullName"
+                       placeholder="Ej: Juan Pérez Rodríguez" />
+            </div>
+            <div class="form-group">
+                <label for="Identification">Identificación</label>
+                <input type="text" id="Identification" name="Identification"
+                       placeholder="Ej: 1-2345-6789" />
+            </div>
+            <div class="form-group">
+                <label for="Email">Correo electrónico</label>
+                <input type="email" id="Email" name="Email"
+                       placeholder="Ej: juan@correo.com" />
+            </div>
+            <div class="form-group">
+                <label for="PhoneNumber">Teléfono</label>
+                <input type="text" id="PhoneNumber" name="PhoneNumber"
+                       placeholder="Ej: 8888-8888" />
+            </div>
+            <div class="form-group">
+                <label for="Position">Cargo o puesto</label>
+                <input type="text" id="Position" name="Position"
+                       placeholder="Ej: Director Ejecutivo" />
+            </div>
+            <div class="form-group">
+                <label for="Address">Dirección</label>
+                <input type="text" id="Address" name="Address"
+                       placeholder="Ej: San José, Costa Rica" />
+            </div>
+        </div>
+    </div>
+
+    <!-- ACCIONES -->
+    <div class="form-actions">
+        <button type="button" id="btnAnonymize" class="btn-primary">
+            Anonimizar Documento
+        </button>
+    </div>
+</form>
+
+@section Scripts {
+    <script>
+        document.getElementById('btnAnonymize').addEventListener('click', async function () {
+            const fileInput = document.getElementById('File');
+            const uploadedBy = document.getElementById('UploadedBy').value.trim();
+
+            if (!fileInput.files || fileInput.files.length === 0) {
+                showAlert('Debe seleccionar un archivo .docx.', 'error');
+                return;
+            }
+
+            if (!uploadedBy) {
+                showAlert('Debe indicar quién sube el archivo.', 'error');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('documento',       fileInput.files[0]);
+            formData.append('UploadedBy',      uploadedBy);
+            formData.append('FullName',        document.getElementById('FullName').value);
+            formData.append('Identification',  document.getElementById('Identification').value);
+            formData.append('Email',           document.getElementById('Email').value);
+            formData.append('PhoneNumber',     document.getElementById('PhoneNumber').value);
+            formData.append('Position',        document.getElementById('Position').value);
+            formData.append('Address',         document.getElementById('Address').value);
+
+            document.getElementById('loadingOverlay').classList.add('active');
+
+            try {
+                const response = await fetch('/upload/process', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    showAlert('Error al procesar: ' + errorText, 'error');
+                    return;
+                }
+
+                // Descargar el archivo anonimizado
+                const blob = await response.blob();
+                const url  = window.URL.createObjectURL(blob);
+                const a    = document.createElement('a');
+                a.href     = url;
+                a.download = 'ANONYMIZED_' + fileInput.files[0].name;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+
+                showAlert('Documento anonimizado descargado correctamente.', 'success');
+
+            } catch (err) {
+                showAlert('Error de conexión: ' + err.message, 'error');
+            } finally {
+                document.getElementById('loadingOverlay').classList.remove('active');
+            }
+        });
+
+        function showAlert(message, type) {
+            const container = document.getElementById('alertContainer');
+            container.innerHTML = `<div class="alert alert-${type}">${message}</div>`;
+            container.scrollIntoView({ behavior: 'smooth' });
+        }
+    </script>
+}
