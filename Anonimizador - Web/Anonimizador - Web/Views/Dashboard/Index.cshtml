@@ -1,0 +1,62 @@
+﻿@model List<Anonimizador___Web.Controllers.DocumentSummaryViewModel>
+@{
+    ViewData["Title"] = "Dashboard";
+}
+
+<h1 class="page-title">Historial de Documentos</h1>
+
+@if (ViewBag.Error != null)
+{
+    <div class="alert alert-error">@ViewBag.Error</div>
+}
+
+<div class="form-card">
+    <div class="dashboard-header">
+        <p class="form-card-title">Documentos procesados</p>
+        <span class="dashboard-count">@Model.Count registro(s)</span>
+    </div>
+
+    @if (Model.Count == 0)
+    {
+        <p class="empty-state">No hay documentos procesados aún.</p>
+    }
+    else
+    {
+        <div class="table-wrapper">
+            <table class="dashboard-table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Archivo</th>
+                        <th>Tamaño</th>
+                        <th>Subido por</th>
+                        <th>Fecha</th>
+                        <th>Estado</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var doc in Model)
+                    {
+                        <tr>
+                            <td class="td-id">@doc.DocumentId</td>
+                            <td class="td-filename">
+                                <span class="file-icon">📄</span>
+                                @doc.OriginalFileName
+                            </td>
+                            <td class="td-size">@doc.FileSizeKB KB</td>
+                            <td>@doc.UploadedBy</td>
+                            <td class="td-date">
+                                @doc.CreatedAt.ToString("dd/MM/yyyy HH:mm")
+                            </td>
+                            <td>
+                                <span class="status-badge status-@doc.Status.ToLower()">
+                                    @doc.Status
+                                </span>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>

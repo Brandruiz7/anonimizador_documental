@@ -4,20 +4,27 @@
 
 <h1 class="page-title">Anonimización de Documentos</h1>
 
-@if (TempData["Error"] != null)
-{
-    <div class="alert alert-error">@TempData["Error"]</div>
-}
-
-@if (TempData["Success"] != null)
-{
-    <div class="alert alert-success">@TempData["Success"]</div>
-}
-
 <div id="alertContainer"></div>
 
+<!-- REGIÓN 1: EXPLICACIÓN -->
+<div class="form-card info-card">
+    <p class="form-card-title">¿Cómo funciona?</p>
+    <p class="info-text">
+        Esta herramienta permite anonimizar documentos Word (<strong>.docx</strong>)
+        reemplazando datos sensibles por etiquetas neutrales.
+        Puede anonimizar información de una o más personas en el mismo documento.
+    </p>
+    <ul class="info-list">
+        <li>📄 Cargue el documento que desea anonimizar</li>
+        <li>👤 Agregue los datos de cada persona a anonimizar</li>
+        <li>✅ Solo llene los campos que necesita reemplazar</li>
+        <li>⬇️ El sistema generará y descargará automáticamente el documento anonimizado</li>
+    </ul>
+</div>
+
 <form id="anonymizeForm">
-    <!-- SECCIÓN 1: DOCUMENTO -->
+
+    <!-- REGIÓN 2: CARGA DOCUMENTAL -->
     <div class="form-card">
         <p class="form-card-title">Documento a anonimizar</p>
         <div class="form-grid">
@@ -25,48 +32,21 @@
                 <label for="File">Archivo (.docx)</label>
                 <input type="file" id="File" name="documento" accept=".docx" required />
             </div>
-            <div class="form-group">
-                <label for="UploadedBy">Subido por</label>
-                <input type="text" id="UploadedBy" name="UploadedBy"
-                       placeholder="Usuario o departamento" required />
-            </div>
         </div>
     </div>
 
-    <!-- SECCIÓN 2: DATOS A ANONIMIZAR -->
+    <!-- REGIÓN 3: PARTES A ANONIMIZAR -->
     <div class="form-card">
-        <p class="form-card-title">Datos a anonimizar</p>
-        <div class="form-grid">
-            <div class="form-group">
-                <label for="FullName">Nombre completo</label>
-                <input type="text" id="FullName" name="FullName"
-                       placeholder="Ej: Juan Pérez Rodríguez" />
-            </div>
-            <div class="form-group">
-                <label for="Identification">Identificación</label>
-                <input type="text" id="Identification" name="Identification"
-                       placeholder="Ej: 1-2345-6789" />
-            </div>
-            <div class="form-group">
-                <label for="Email">Correo electrónico</label>
-                <input type="email" id="Email" name="Email"
-                       placeholder="Ej: juan@correo.com" />
-            </div>
-            <div class="form-group">
-                <label for="PhoneNumber">Teléfono</label>
-                <input type="text" id="PhoneNumber" name="PhoneNumber"
-                       placeholder="Ej: 8888-8888" />
-            </div>
-            <div class="form-group">
-                <label for="Position">Cargo o puesto</label>
-                <input type="text" id="Position" name="Position"
-                       placeholder="Ej: Director Ejecutivo" />
-            </div>
-            <div class="form-group">
-                <label for="Address">Dirección</label>
-                <input type="text" id="Address" name="Address"
-                       placeholder="Ej: San José, Costa Rica" />
-            </div>
+        <p class="form-card-title">Partes a anonimizar</p>
+
+        <div id="personsContainer">
+            <!-- Persona 1 se genera automáticamente via JS -->
+        </div>
+
+        <div style="margin-top: 16px;">
+            <button type="button" id="btnAddPerson" class="btn-secondary">
+                + Anonimizar otra persona en este documento
+            </button>
         </div>
     </div>
 
@@ -76,10 +56,105 @@
             Anonimizar Documento
         </button>
     </div>
+
 </form>
 
 @section Scripts {
     <script>
+        let personCount = 0;
+
+        // Genera el HTML de una persona
+        function createPersonCard(index) {
+            return `
+            <div class="person-card" id="person-${index}">
+                <div class="person-header">
+                    <span class="person-title">Persona ${index + 1}</span>
+                    ${index > 0 ? `<button type="button" class="btn-remove" onclick="removePerson(${index})">✕ Eliminar</button>` : ''}
+                </div>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Nombre completo</label>
+                        <input type="text" name="Persons[${index}].FullName"
+                               placeholder="Ej: Juan Pérez Rodríguez" />
+                    </div>
+                    <div class="form-group">
+                        <label>Identificación</label>
+                        <input type="text" name="Persons[${index}].Identification"
+                               placeholder="Ej: 1-2345-6789" />
+                    </div>
+                    <div class="form-group">
+                        <label>Correo electrónico</label>
+                        <input type="email" name="Persons[${index}].Email"
+                               placeholder="Ej: juan@correo.com" />
+                    </div>
+                    <div class="form-group">
+                        <label>Teléfono</label>
+                        <input type="text" name="Persons[${index}].PhoneNumber"
+                               placeholder="Ej: 8888-8888" />
+                    </div>
+                    <div class="form-group">
+                        <label>Cargo o puesto</label>
+                        <input type="text" name="Persons[${index}].Position"
+                               placeholder="Ej: Director Ejecutivo" />
+                    </div>
+                    <div class="form-group">
+                        <label>Dirección</label>
+                        <input type="text" name="Persons[${index}].Address"
+                               placeholder="Ej: San José, Costa Rica" />
+                    </div>
+                </div>
+            </div>`;
+        }
+
+        // Agrega una persona nueva
+        function addPerson() {
+            const container = document.getElementById('personsContainer');
+            container.insertAdjacentHTML('beforeend', createPersonCard(personCount));
+            personCount++;
+        }
+
+        // Elimina una persona y renumera
+        function removePerson(index) {
+            const card = document.getElementById(`person-${index}`);
+            if (card) card.remove();
+            renumberPersons();
+        }
+
+        // Renumera las personas después de eliminar
+        function renumberPersons() {
+            const cards = document.querySelectorAll('.person-card');
+            cards.forEach((card, newIndex) => {
+                // Actualizar ID del card
+                card.id = `person-${newIndex}`;
+
+                // Actualizar título
+                card.querySelector('.person-title').textContent = `Persona ${newIndex + 1}`;
+
+                // Actualizar botón eliminar
+                const btnRemove = card.querySelector('.btn-remove');
+                if (btnRemove) {
+                    btnRemove.setAttribute('onclick', `removePerson(${newIndex})`);
+                } else if (newIndex > 0) {
+                    // Si era el primero y ahora no lo es, agregar botón eliminar
+                    const header = card.querySelector('.person-header');
+                    header.insertAdjacentHTML('beforeend',
+                        `<button type="button" class="btn-remove" onclick="removePerson(${newIndex})">✕ Eliminar</button>`);
+                }
+
+                // Actualizar names de los inputs
+                card.querySelectorAll('input').forEach(input => {
+                    input.name = input.name.replace(/Persons\[\d+\]/, `Persons[${newIndex}]`);
+                });
+            });
+
+            // Resetear contador al total actual
+            personCount = cards.length;
+        }
+
+        // Botón agregar persona
+        document.getElementById('btnAddPerson').addEventListener('click', addPerson);
+
+        // Botón anonimizar
         document.getElementById('btnAnonymize').addEventListener('click', async function () {
             const fileInput = document.getElementById('File');
             const uploadedBy = document.getElementById('UploadedBy').value.trim();
@@ -94,15 +169,22 @@
                 return;
             }
 
+            const cards = document.querySelectorAll('.person-card');
+            if (cards.length === 0) {
+                showAlert('Debe agregar al menos una persona a anonimizar.', 'error');
+                return;
+            }
+
             const formData = new FormData();
-            formData.append('documento',       fileInput.files[0]);
-            formData.append('UploadedBy',      uploadedBy);
-            formData.append('FullName',        document.getElementById('FullName').value);
-            formData.append('Identification',  document.getElementById('Identification').value);
-            formData.append('Email',           document.getElementById('Email').value);
-            formData.append('PhoneNumber',     document.getElementById('PhoneNumber').value);
-            formData.append('Position',        document.getElementById('Position').value);
-            formData.append('Address',         document.getElementById('Address').value);
+            formData.append('documento', fileInput.files[0]);
+            formData.append('UploadedBy', uploadedBy);
+
+            // Agregar campos de cada persona
+            cards.forEach((card, index) => {
+                card.querySelectorAll('input').forEach(input => {
+                    formData.append(input.name, input.value);
+                });
+            });
 
             document.getElementById('loadingOverlay').classList.add('active');
 
@@ -118,7 +200,6 @@
                     return;
                 }
 
-                // Descargar el archivo anonimizado
                 const blob = await response.blob();
                 const url  = window.URL.createObjectURL(blob);
                 const a    = document.createElement('a');
@@ -143,5 +224,8 @@
             container.innerHTML = `<div class="alert alert-${type}">${message}</div>`;
             container.scrollIntoView({ behavior: 'smooth' });
         }
+
+        // Inicializar con Persona 1
+        addPerson();
     </script>
 }

@@ -1,6 +1,9 @@
 ﻿<!DOCTYPE html>
 <html lang="es">
 <head>
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@ViewData["Title"] — CGR Anonimizador</title>
@@ -17,8 +20,12 @@
 
         <nav class="sidebar-nav">
             <a href="@Url.Action("Index", "Home")"
-               class="@(ViewContext.RouteData.Values["action"]?.ToString() == "Index" ? "active" : "")">
+               class="@(ViewContext.RouteData.Values["controller"]?.ToString() == "Home" ? "active" : "")">
                 Anonimizar
+            </a>
+            <a href="@Url.Action("Index", "Dashboard")"
+               class="@(ViewContext.RouteData.Values["controller"]?.ToString() == "Dashboard" ? "active" : "")">
+                Dashboard
             </a>
         </nav>
         <!-- Logout al fondo del sidebar -->
@@ -44,5 +51,87 @@
 
     <script src="~/js/site.js" asp-append-version="true"></script>
     @await RenderSectionAsync("Scripts", required: false)
+    <!-- AVISO DE EXPIRACIÓN DE SESIÓN -->
+    <div id="sessionWarning" style="
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(54,73,155,0.18);
+    z-index: 9999;
+    align-items: center;
+    justify-content: center;">
+        <div style="
+        background: white;
+        border-radius: 8px;
+        padding: 32px 40px;
+        text-align: center;
+        box-shadow: 0 4px 24px rgba(0,0,0,0.12);
+        max-width: 380px;">
+            <p style="font-size:15px; font-weight:700; color:#36499b; margin-bottom:8px;">
+                ¿Desea continuar?
+            </p>
+            <p style="font-size:13px; color:#7a8099; margin-bottom:24px;">
+                Su sesión está a punto de expirar por inactividad.
+            </p>
+            <button onclick="renewSession()" style="
+            background: #61c0cd;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 10px 28px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-right: 8px;">
+                Continuar sesión
+            </button>
+            <button onclick="window.location='/auth/logout'" style="
+            background: transparent;
+            color: #7a8099;
+            border: 1px solid #dce3f0;
+            border-radius: 8px;
+            padding: 10px 20px;
+            font-size: 13px;
+            cursor: pointer;">
+                Cerrar sesión
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Muestra el aviso 5 minutos antes de expirar (a los 25 min)
+        const WARNING_MINUTES = 25;
+        const EXPIRE_MINUTES  = 30;
+
+        let warningTimer;
+        let expireTimer;
+
+        function startTimers() {
+            clearTimeout(warningTimer);
+            clearTimeout(expireTimer);
+
+            // Aviso a los 25 minutos
+            warningTimer = setTimeout(() => {
+                document.getElementById('sessionWarning').style.display = 'flex';
+            }, WARNING_MINUTES * 60 * 1000);
+
+            // Expiración forzada a los 30 minutos
+            expireTimer = setTimeout(() => {
+                window.location = '/auth/logout';
+            }, EXPIRE_MINUTES * 60 * 1000);
+        }
+
+        function renewSession() {
+            document.getElementById('sessionWarning').style.display = 'none';
+
+            // Hacemos un request al servidor para renovar la cookie
+            fetch('/auth/renew', { method: 'POST' })
+                .then(() => startTimers())
+                .catch(() => window.location = '/auth/logout');
+        }
+
+        // Iniciar timers al cargar la página
+        startTimers();
+    </script>
 </body>
 </html>

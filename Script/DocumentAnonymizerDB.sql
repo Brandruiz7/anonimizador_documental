@@ -172,7 +172,6 @@ GO
 -- INDEXES
 -------------------------------------------------------------------
 
-CREATE UNIQUE INDEX UX_DOCUMENTS_FileHash      ON DOCUMENTS        (FileHash);
 CREATE INDEX IX_DOCUMENTS_Status               ON DOCUMENTS        (CurrentStatusId);
 CREATE INDEX IX_DOCUMENTS_CreatedAt            ON DOCUMENTS        (CreatedAt DESC);
 CREATE INDEX IX_DOCUMENTS_Status_Created       ON DOCUMENTS        (CurrentStatusId, CreatedAt DESC);
@@ -418,6 +417,110 @@ BEGIN
     FROM USERS u
     INNER JOIN ROLES r ON u.RoleId = r.RoleId
     WHERE u.Username = @Username;
+END;
+GO
+
+-- =============================================
+-- SP: SP_DOCUMENT_GET_ALL
+-- Retorna el historial de documentos procesados
+-- con metadata básica para el dashboard.
+-- =============================================
+CREATE OR ALTER PROCEDURE SP_DOCUMENT_GET_ALL
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT
+        d.DocumentId,
+        d.OriginalFileName,
+        d.FileSizeKB,
+        d.UploadedBy,
+        d.CreatedAt,
+        ps.Name AS Status
+    FROM DOCUMENTS d
+    INNER JOIN PROCESS_STATUS ps ON d.CurrentStatusId = ps.StatusId
+    ORDER BY d.CreatedAt DESC;
+END;
+GO
+
+-- =============================================
+-- SP: SP_METRICS_DOCUMENTS_BY_MONTH
+-- Documentos procesados por mes (últimos 6 meses)
+-- =============================================
+CREATE OR ALTER PROCEDURE SP_METRICS_DOCUMENTS_BY_MONTH
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT
+        FORMAT(CreatedAt, 'MMM yyyy', 'es-CR') AS Month,
+        YEAR(CreatedAt)                         AS Year,
+        MONTH(CreatedAt)                        AS MonthNumber,
+        COUNT(*)                                AS Total
+    FROM DOCUMENTS
+    WHERE CreatedAt >= DATEADD(MONTH, -5, DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()), 1))
+    GROUP BY
+        FORMAT(CreatedAt, 'MMM yyyy', 'es-CR'),
+        YEAR(CreatedAt),
+        MONTH(CreatedAt)
+    ORDER BY Year, MonthNumber;
+END;
+GO
+
+-- =============================================
+-- SP: SP_METRICS_DOCUMENTS_BY_STATUS
+-- Documentos agrupados por estado
+-- =============================================
+CREATE OR ALTER PROCEDURE SP_METRICS_DOCUMENTS_BY_STATUS
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT
+        ps.Name AS Status,
+        COUNT(d.DocumentId) AS Total
+    FROM PROCESS_STATUS ps
+    LEFT JOIN DOCUMENTS d ON d.CurrentStatusId = ps.StatusId
+    GROUP BY ps.StatusId, ps.Name
+    ORDER BY ps.StatusId;
+END;
+GO
+
+-- =============================================
+-- SP: SP_METRICS_DOCUMENTS_BY_USER
+-- Documentos agrupados por usuario
+-- =============================================
+CREATE OR ALTER PROCEDURE SP_METRICS_DOCUMENTS_BY_USER
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT
+        UploadedBy  AS Username,
+        COUNT(*)    AS Total
+    FROM DOCUMENTS
+    GROUP BY UploadedBy
+    ORDER BY Total DESC;
+END;
+GO
+
+-- =============================================
+-- SP: SP_METRICS_SUMMARY
+-- Tarjetas de resumen: total, este mes, usuarios activos
+-- =============================================
+CREATE OR ALTER PROCEDURE SP_METRICS_SUMMARY
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT
+        COUNT(*) AS TotalDocuments,
+        SUM(CASE
+            WHEN MONTH(CreatedAt) = MONTH(GETDATE())
+             AND YEAR(CreatedAt)  = YEAR(GETDATE())
+            THEN 1 ELSE 0 END) AS ThisMonth,
+        COUNT(DISTINCT UploadedBy) AS ActiveUsers
+    FROM DOCUMENTS;
 END;
 GO
 

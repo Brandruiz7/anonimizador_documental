@@ -1,6 +1,7 @@
 ﻿using Anonimizador___Web.Models;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 using System.Text;
@@ -66,30 +67,26 @@ namespace Anonimizador___Web.Controllers
 
                 if (!response.IsSuccessStatusCode)
                 {
-                    ModelState.AddModelError("",
-                        "Usuario o contraseña incorrectos");
+                    ModelState.AddModelError("", "Usuario o contraseña incorrectos");
                     return View(model);
                 }
 
                 var json = await response.Content.ReadAsStringAsync();
-
                 var loginResponse = JsonSerializer.Deserialize<JsonElement>(json);
 
                 var token = loginResponse.GetProperty("token").GetString()!;
                 var username = loginResponse.GetProperty("username").GetString()!;
                 var role = loginResponse.GetProperty("role").GetString()!;
 
-                // Guardamos el token en los claims de la cookie
                 var claims = new List<Claim>
                 {
-                    new Claim(ClaimTypes.Name,     username),
-                    new Claim(ClaimTypes.Role,     role),
-                    new Claim("jwt_token",         token)
+                    new Claim(ClaimTypes.Name,  username),
+                    new Claim(ClaimTypes.Role,  role),
+                    new Claim("jwt_token",      token)
                 };
 
                 var identity = new ClaimsIdentity(
-                    claims,
-                    CookieAuthenticationDefaults.AuthenticationScheme);
+                    claims, CookieAuthenticationDefaults.AuthenticationScheme);
 
                 var principal = new ClaimsPrincipal(identity);
 
@@ -98,12 +95,11 @@ namespace Anonimizador___Web.Controllers
                     principal,
                     new AuthenticationProperties
                     {
-                        IsPersistent = true,
-                        ExpiresUtc = DateTimeOffset.UtcNow.AddHours(8)
+                        IsPersistent = false, // ← se elimina al cerrar el navegador
+                        ExpiresUtc = DateTimeOffset.UtcNow.AddMinutes(30)
                     });
 
-                _logger.LogInformation(
-                    "User {Username} logged in successfully", username);
+                _logger.LogInformation("User {Username} logged in", username);
 
                 if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl))
                     return Redirect(returnUrl);
@@ -113,8 +109,7 @@ namespace Anonimizador___Web.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Login error");
-                ModelState.AddModelError("",
-                    "Error de conexión con el servicio");
+                ModelState.AddModelError("", "Error de conexión con el servicio");
                 return View(model);
             }
         }
@@ -126,6 +121,18 @@ namespace Anonimizador___Web.Controllers
                 CookieAuthenticationDefaults.AuthenticationScheme);
 
             return RedirectToAction("Login");
+        }
+
+        /// <summary>
+        /// Renueva la sesión del usuario si está autenticado.
+        /// </summary>
+        [HttpPost("renew")]
+        [Authorize]
+        public IActionResult Renew()
+        {
+            // El SlidingExpiration en la cookie ya renueva automáticamente
+            // con cada request — este endpoint solo sirve para disparar ese mecanismo
+            return Ok();
         }
     }
 }

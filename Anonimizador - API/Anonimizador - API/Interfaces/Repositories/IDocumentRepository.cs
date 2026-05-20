@@ -1,4 +1,6 @@
-﻿namespace Anonimizador___API.Interfaces.Repositories
+﻿using Anonimizador___API.Application.DTOs;
+
+namespace Anonimizador___API.Interfaces.Repositories
 {
     /// <summary>
     /// Define el contrato para el acceso a datos de documentos y sus versiones.
@@ -74,5 +76,15 @@
         /// Registra un campo anonimizado para auditoría.
         /// </summary>
         Task InsertAuditFieldAsync(int versionId, string fieldType, string originalValue, string anonymizedValue);
+
+        /// <summary>
+        /// Retorna el historial de documentos procesados para el dashboard.
+        /// </summary>
+        Task<IEnumerable<DocumentSummaryDto>> GetAllDocumentsAsync();
+
+        /// <summary>
+        /// Retorna todas las métricas para el dashboard.
+        /// </summary>
+        Task<MetricsResponseDto> GetMetricsAsync();
     }
 }

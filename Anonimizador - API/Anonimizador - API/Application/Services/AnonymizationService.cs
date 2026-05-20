@@ -167,28 +167,52 @@ namespace Anonimizador___API.Application.Services
 
         /// <summary>
         /// Aplica reemplazos y acumula en auditFields cada campo que fue sustituido.
+        /// Incluye el número de persona en la etiqueta de reemplazo.
         /// </summary>
-        private string ApplyTargets(
-            string input,
-            List<AnonymizationTargetDto> targets,
-            List<AuditFieldDto> auditFields)
+        private string ApplyTargets( string input, List<AnonymizationTargetDto> targets, List<AuditFieldDto> auditFields)
         {
             if (string.IsNullOrWhiteSpace(input)) return input;
 
-            foreach (var target in targets)
+            for (int i = 0; i < targets.Count; i++)
             {
+                var target = targets[i];
+                var personLabel = $"Persona {i + 1}";
+
                 input = ReplaceAndAudit(
-                    input, target.FullName, "[NAME]", "NAME", auditFields);
+                    input, target.FullName,
+                    $"[{personLabel} - Nombre]",
+                    $"Persona {i + 1} - Nombre",
+                    auditFields);
+
                 input = ReplaceAndAudit(
-                    input, target.Identification, "[ID]", "ID", auditFields);
+                    input, target.Identification,
+                    $"[{personLabel} - Cédula]",
+                    $"Persona {i + 1} - Cédula",
+                    auditFields);
+
                 input = ReplaceAndAudit(
-                    input, target.Email, "[EMAIL]", "EMAIL", auditFields);
+                    input, target.Email,
+                    $"[{personLabel} - Correo]",
+                    $"Persona {i + 1} - Correo",
+                    auditFields);
+
                 input = ReplaceAndAudit(
-                    input, target.PhoneNumber, "[PHONE]", "PHONE", auditFields);
+                    input, target.PhoneNumber,
+                    $"[{personLabel} - Teléfono]",
+                    $"Persona {i + 1} - Teléfono",
+                    auditFields);
+
                 input = ReplaceAndAudit(
-                    input, target.Position, "[POSITION]", "POSITION", auditFields);
+                    input, target.Position,
+                    $"[{personLabel} - Cargo]",
+                    $"Persona {i + 1} - Cargo",
+                    auditFields);
+
                 input = ReplaceAndAudit(
-                    input, target.Address, "[ADDRESS]", "ADDRESS", auditFields);
+                    input, target.Address,
+                    $"[{personLabel} - Dirección]",
+                    $"Persona {i + 1} - Dirección",
+                    auditFields);
             }
 
             return input;
@@ -197,12 +221,7 @@ namespace Anonimizador___API.Application.Services
         /// <summary>
         /// Reemplaza un valor en el texto y registra la auditoría solo si hubo cambio.
         /// </summary>
-        private string ReplaceAndAudit(
-            string input,
-            string? originalValue,
-            string replacement,
-            string fieldType,
-            List<AuditFieldDto> auditFields)
+        private string ReplaceAndAudit(string input, string? originalValue, string replacement, string fieldType, List<AuditFieldDto> auditFields)
         {
             if (string.IsNullOrWhiteSpace(originalValue)) return input;
 

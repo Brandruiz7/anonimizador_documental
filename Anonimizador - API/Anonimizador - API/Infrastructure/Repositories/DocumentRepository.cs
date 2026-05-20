@@ -1,6 +1,7 @@
-﻿using Dapper;
+﻿using Anonimizador___API.Application.DTOs;
 using Anonimizador___API.Infrastructure.Data;
 using Anonimizador___API.Interfaces.Repositories;
+using Dapper;
 using System.Data;
 
 namespace Anonimizador___API.Infrastructure.Repositories
@@ -123,12 +124,7 @@ namespace Anonimizador___API.Infrastructure.Repositories
         /// <param name="hash">SHA256 document hash.</param>
         /// <param name="uploadedBy">User who uploaded the file.</param>
         /// <returns>Generated process identifier.</returns>
-        public async Task<int> InsertDocumentProcessAsync(
-            string fileName,
-            string contentType,
-            long fileSizeKb,
-            string hash,
-            string uploadedBy)
+        public async Task<int> InsertDocumentProcessAsync(string fileName, string contentType, long fileSizeKb, string hash, string uploadedBy)
         {
             using var connection = _factory.CreateConnection();
 
@@ -152,9 +148,7 @@ namespace Anonimizador___API.Infrastructure.Repositories
         /// </summary>
         /// <param name="documentId">Identificador del documento.</param>
         /// <param name="statusId">Identificador del estado.</param>
-        public async Task UpdateProcessStatusAsync(
-            int documentId,
-            int statusId)
+        public async Task UpdateProcessStatusAsync(int documentId, int statusId)
         {
             using var connection = _factory.CreateConnection();
 
@@ -170,10 +164,7 @@ namespace Anonimizador___API.Infrastructure.Repositories
                 commandType: System.Data.CommandType.StoredProcedure);
         }
 
-        public async Task<int> InsertDocumentVersionAsync(
-            int documentId,
-            string versionType,
-            string fileHash)
+        public async Task<int> InsertDocumentVersionAsync( int documentId, string versionType, string fileHash)
         {
             using var connection = _factory.CreateConnection();
 
@@ -194,11 +185,7 @@ namespace Anonimizador___API.Infrastructure.Repositories
             return result;
         }
 
-        public async Task InsertAuditFieldAsync(
-            int versionId,
-            string fieldType,
-            string originalValue,
-            string anonymizedValue)
+        public async Task InsertAuditFieldAsync(int versionId, string fieldType, string originalValue, string anonymizedValue)
         {
             using var connection = _factory.CreateConnection();
 
@@ -214,6 +201,53 @@ namespace Anonimizador___API.Infrastructure.Repositories
                     //ConfidenceScore = (decimal?)100.00
                 },
                 commandType: CommandType.StoredProcedure);
+        }
+
+        /// <summary>
+        /// Retorna el historial de documentos procesados.
+        /// </summary>
+        public async Task<IEnumerable<DocumentSummaryDto>> GetAllDocumentsAsync()
+        {
+            using var connection = _factory.CreateConnection();
+
+            return await connection.QueryAsync<DocumentSummaryDto>(
+                "SP_DOCUMENT_GET_ALL",
+                commandType: CommandType.StoredProcedure);
+        }
+
+        /// <summary>
+        /// Retorna todas las métricas para el dashboard.
+        /// </summary>
+        public async Task<MetricsResponseDto> GetMetricsAsync()
+        {
+            using var connection = _factory.CreateConnection();
+
+            // Ejecutamos los 4 SPs en paralelo para mayor rendimiento
+            var summaryTask = connection.QueryFirstOrDefaultAsync<MetricsSummaryDto>(
+                "SP_METRICS_SUMMARY",
+                commandType: CommandType.StoredProcedure);
+
+            var byMonthTask = connection.QueryAsync<DocumentsByMonthDto>(
+                "SP_METRICS_DOCUMENTS_BY_MONTH",
+                commandType: CommandType.StoredProcedure);
+
+            var byStatusTask = connection.QueryAsync<DocumentsByStatusDto>(
+                "SP_METRICS_DOCUMENTS_BY_STATUS",
+                commandType: CommandType.StoredProcedure);
+
+            var byUserTask = connection.QueryAsync<DocumentsByUserDto>(
+                "SP_METRICS_DOCUMENTS_BY_USER",
+                commandType: CommandType.StoredProcedure);
+
+            await Task.WhenAll(summaryTask, byMonthTask, byStatusTask, byUserTask);
+
+            return new MetricsResponseDto
+            {
+                Summary = await summaryTask ?? new MetricsSummaryDto(),
+                ByMonth = (await byMonthTask).ToList(),
+                ByStatus = (await byStatusTask).ToList(),
+                ByUser = (await byUserTask).ToList()
+            };
         }
     }
 }

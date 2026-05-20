@@ -52,5 +52,31 @@ namespace Anonimizador___API.API.Controllers
 
             return File(fileStream, contentType, fileName);
         }
+
+        /// <summary>
+        /// Retorna el historial de documentos procesados para el dashboard.
+        /// </summary>
+        /// <response code="200">Lista de documentos</response>
+        /// <response code="401">No autorizado</response>
+        [HttpGet]
+        [Authorize(Roles = "Admin,Operator")]
+        public async Task<IActionResult> GetAll()
+        {
+            var documents = await _service.GetAllDocumentsAsync();
+            return Ok(documents);
+        }
+
+        /// <summary>
+        /// Retorna las métricas para el dashboard.
+        /// </summary>
+        /// <response code="200">Métricas del sistema</response>
+        /// <response code="401">No autorizado</response>
+        [HttpGet("metrics")]
+        [Authorize(Roles = "Admin,Operator")]
+        public async Task<IActionResult> GetMetrics()
+        {
+            var metrics = await _service.GetMetricsAsync();
+            return Ok(metrics);
+        }
     }
 }

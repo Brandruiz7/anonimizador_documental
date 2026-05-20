@@ -120,31 +120,37 @@ namespace Anonimizador___API.Application.Services
                 // =========================
                 // 6. CONSTRUIR TARGETS
                 // =========================
-                var targets = new List<AnonymizationTargetDto>
-                {
-                    new()
-                    {
-                        FullName       = request.FullName,
-                        Identification = request.Identification,
-                        Email          = request.Email,
-                        PhoneNumber    = request.PhoneNumber,
-                        Position       = request.Position,
-                        Address        = request.Address
-                    }
-                };
 
-                targets = targets
-                    .Where(t =>
-                        !string.IsNullOrWhiteSpace(t.FullName) ||
-                        !string.IsNullOrWhiteSpace(t.Identification) ||
-                        !string.IsNullOrWhiteSpace(t.Email) ||
-                        !string.IsNullOrWhiteSpace(t.PhoneNumber) ||
-                        !string.IsNullOrWhiteSpace(t.Position) ||
-                        !string.IsNullOrWhiteSpace(t.Address))
+                // Validamos que venga al menos una persona
+                if (request.Persons == null || request.Persons.Count == 0)
+                    throw new Exception("At least one person must be provided.");
+
+                // Mapeamos cada PersonTargetDto a AnonymizationTargetDto
+                // y filtramos personas que no tengan ningún campo lleno
+                var targets = request.Persons
+                    .Where(p =>
+                        !string.IsNullOrWhiteSpace(p.FullName) ||
+                        !string.IsNullOrWhiteSpace(p.Identification) ||
+                        !string.IsNullOrWhiteSpace(p.Email) ||
+                        !string.IsNullOrWhiteSpace(p.PhoneNumber) ||
+                        !string.IsNullOrWhiteSpace(p.Position) ||
+                        !string.IsNullOrWhiteSpace(p.Address))
+                    .Select(p => new AnonymizationTargetDto
+                    {
+                        FullName = p.FullName,
+                        Identification = p.Identification,
+                        Email = p.Email,
+                        PhoneNumber = p.PhoneNumber,
+                        Position = p.Position,
+                        Address = p.Address
+                    })
                     .ToList();
 
                 if (targets.Count == 0)
-                    throw new Exception("No anonymization targets provided.");
+                    throw new Exception("No anonymization targets provided. Fill at least one field per person.");
+
+                _logger.LogInformation(
+                    "Anonymization targets built: {Count} person(s)", targets.Count);
 
                 // =========================
                 // 7. ANONIMIZAR
@@ -227,6 +233,24 @@ namespace Anonimizador___API.Application.Services
                 _logger.LogError(ex, "Error during streaming anonymization");
                 throw;
             }
+        }
+
+        /// <summary>
+        /// Retorna el historial de documentos procesados para el dashboard.
+        /// </summary>
+        public async Task<IEnumerable<DocumentSummaryDto>> GetAllDocumentsAsync()
+        {
+            _logger.LogInformation("Fetching document history for dashboard");
+            return await _repository.GetAllDocumentsAsync();
+        }
+
+        /// <summary>
+        /// Retorna las métricas para el dashboard.
+        /// </summary>
+        public async Task<MetricsResponseDto> GetMetricsAsync()
+        {
+            _logger.LogInformation("Fetching metrics for dashboard");
+            return await _repository.GetMetricsAsync();
         }
     }
 }

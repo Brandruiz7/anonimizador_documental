@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace Anonimizador___Web.Controllers
 {
     [Authorize]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public class HomeController : Controller
     {
         private readonly IHttpClientFactory _httpClientFactory;
