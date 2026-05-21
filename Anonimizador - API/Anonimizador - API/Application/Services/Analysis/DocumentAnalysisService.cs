@@ -1,26 +1,27 @@
 ﻿using Anonimizador___API.Application.Common;
-using Anonimizador___API.Application.DTOs;
+using Anonimizador___API.Application.DTOs.Analysis;
 using Anonimizador___API.Interfaces.Services;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using System.Text;
-using System.Text.Json;
-using System.Text.RegularExpressions;
 using UglyToad.PdfPig;
 
-namespace Anonimizador___API.Application.Services
+namespace Anonimizador___API.Application.Services.Analysis
 {
     /// <summary>
     /// Servicio híbrido de análisis de documentos.
-    /// Combina Regex para detección precisa e IA para detección semántica.
+    /// Combina Regex (detección precisa) con IA mediante Ollama (detección semántica).
     /// </summary>
     public class DocumentAnalysisService : IDocumentAnalysisService
     {
         private readonly OllamaService _ollama;
         private readonly ILogger<DocumentAnalysisService> _logger;
 
+        /// <summary>
+        /// Inicializa el servicio con sus dependencias.
+        /// </summary>
         public DocumentAnalysisService(
             OllamaService ollama,
             ILogger<DocumentAnalysisService> logger)
@@ -34,62 +35,50 @@ namespace Anonimizador___API.Application.Services
             IFormFile file,
             string? additionalContext = null)
         {
-            _logger.LogInformation(
-                "Starting hybrid document analysis");
+            _logger.LogInformation("Iniciando análisis híbrido de documento");
 
-            // 1. Extraer texto del documento
             var text = await ExtractTextAsync(file);
 
             if (string.IsNullOrWhiteSpace(text))
-                throw new Exception(
-                    "No se pudo extraer texto del documento.");
+                throw new Exception("No se pudo extraer texto del documento.");
 
-            // 2. Detección con Regex (rápida y precisa)
-            var regexDetected = ApplyRegexDetection(text);
+            var regexResult = ApplyRegexDetection(text);
+            var aiResult = await ApplyAiDetectionAsync(text, additionalContext);
+            var result = MergeResults(regexResult, aiResult);
 
-            // 3. Detección con IA (semántica)
-            var aiDetected = await ApplyAiDetectionAsync(
-                text, additionalContext);
-
-            // 4. Combinar resultados
-            var result = MergeResults(regexDetected, aiDetected);
-
-            // Incluir texto para vista previa (primeros 3000 chars)
             result.PreviewText = text.Length > 3000
                 ? text[..3000] + "..."
                 : text;
 
             _logger.LogInformation(
-                "Analysis complete. Detected {Count} person(s)",
+                "Análisis completado. Personas detectadas: {Count}",
                 result.DetectedPersons.Count);
 
             return result;
         }
 
         /// <summary>
-        /// Extrae texto plano del documento.
-        /// Soporta DOCX y PDF.
+        /// Extrae el texto plano de un archivo .docx o .pdf.
         /// </summary>
         private async Task<string> ExtractTextAsync(IFormFile file)
         {
-            var extension = Path
-                .GetExtension(file.FileName)
-                .ToLowerInvariant();
+            var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
 
             using var stream = new MemoryStream();
             await file.CopyToAsync(stream);
             var bytes = stream.ToArray();
 
-            if (extension == ".docx")
-                return ExtractTextFromDocx(bytes);
-
-            if (extension == ".pdf")
-                return ExtractTextFromPdf(bytes);
-
-            throw new Exception(
-                $"Formato no soportado: {extension}");
+            return extension switch
+            {
+                ".docx" => ExtractTextFromDocx(bytes),
+                ".pdf" => ExtractTextFromPdf(bytes),
+                _ => throw new Exception($"Formato no soportado: {extension}")
+            };
         }
 
+        /// <summary>
+        /// Extrae texto de un documento Word (.docx).
+        /// </summary>
         private string ExtractTextFromDocx(byte[] bytes)
         {
             using var ms = new MemoryStream(bytes);
@@ -106,6 +95,9 @@ namespace Anonimizador___API.Application.Services
             return sb.ToString();
         }
 
+        /// <summary>
+        /// Extrae texto de un PDF agrupando palabras por línea.
+        /// </summary>
         private string ExtractTextFromPdf(byte[] bytes)
         {
             using var ms = new MemoryStream(bytes);
@@ -115,7 +107,6 @@ namespace Anonimizador___API.Application.Services
 
             foreach (var page in pdf.GetPages())
             {
-                // Agrupar palabras por línea con tolerancia
                 var lineGroups = page.GetWords()
                     .GroupBy(w => Math.Round(w.BoundingBox.Bottom / 2) * 2)
                     .OrderByDescending(g => g.Key);
@@ -134,34 +125,20 @@ namespace Anonimizador___API.Application.Services
         }
 
         /// <summary>
-        /// Detección rápida con Regex usando RegexCatalog.
+        /// Aplica detección rápida con expresiones regulares del <see cref="RegexCatalog"/>.
+        /// Solo detecta la primera coincidencia de cada tipo.
         /// </summary>
         private DocumentAnalysisResultDto ApplyRegexDetection(string text)
         {
             var result = new DocumentAnalysisResultDto();
-            var person = new DetectedPersonDto();
+            var person = new DetectedPersonDto
+            {
+                Email = RegexCatalog.Email.Match(text).Value.NullIfEmpty(),
+                Identification = RegexCatalog.CostaRicaId.Match(text).Value.NullIfEmpty(),
+                PhoneNumber = RegexCatalog.Phone.Match(text).Value.NullIfEmpty(),
+                FullName = RegexCatalog.FullName.Match(text).Value.NullIfEmpty()
+            };
 
-            // Email
-            var emailMatch = RegexCatalog.Email.Match(text);
-            if (emailMatch.Success)
-                person.Email = emailMatch.Value;
-
-            // Cédula costarricense
-            var idMatch = RegexCatalog.CostaRicaId.Match(text);
-            if (idMatch.Success)
-                person.Identification = idMatch.Value;
-
-            // Teléfono
-            var phoneMatch = RegexCatalog.Phone.Match(text);
-            if (phoneMatch.Success)
-                person.PhoneNumber = phoneMatch.Value;
-
-            // Nombre
-            var nameMatch = RegexCatalog.FullName.Match(text);
-            if (nameMatch.Success)
-                person.FullName = nameMatch.Value;
-
-            // Si detectó algo, agrega la persona
             if (person.Email != null ||
                 person.Identification != null ||
                 person.PhoneNumber != null ||
@@ -173,18 +150,22 @@ namespace Anonimizador___API.Application.Services
             return result;
         }
 
-        private async Task<DocumentAnalysisResultDto> ApplyAiDetectionAsync(string text, string? additionalContext)
+        /// <summary>
+        /// Aplica detección semántica usando el modelo Ollama configurado.
+        /// Usa formato estructurado línea por línea para mayor robustez con Mistral.
+        /// </summary>
+        private async Task<DocumentAnalysisResultDto> ApplyAiDetectionAsync(
+            string text,
+            string? additionalContext)
         {
             var contextClause = string.IsNullOrWhiteSpace(additionalContext)
-                ? ""
+                ? string.Empty
                 : $"\nContexto adicional: {additionalContext}";
 
             var truncatedText = text.Length > 4000
                 ? text[..4000]
                 : text;
 
-            // Prompt con formato línea por línea — más fácil de parsear
-            // que JSON libre para modelos como Mistral
             var prompt = $"""
                 Eres un asistente experto en anonimización de documentos legales costarricenses.
                 Analiza el texto y extrae los datos de CADA persona mencionada.
@@ -210,7 +191,7 @@ namespace Anonimizador___API.Application.Services
                 TELEFONO: [número de teléfono, o NONE]
                 CARGO: [cargo o puesto, o NONE]
                 DIRECCION: [dirección física completa, o NONE]
-                VARIACIONES: [otras formas abreviadas del NOMBRE de la persona que aparecen en el texto, separadas por coma. NO incluyas cargos, empresas ni organizaciones. Solo fragmentos del nombre completo. Si no hay variaciones escribe NONE]
+                VARIACIONES: [otras formas abreviadas del NOMBRE que aparecen en el texto, separadas por coma. NO incluyas cargos ni organizaciones. Si no hay variaciones escribe NONE]
                 ---FIN---
 
                 Para datos adicionales sensibles (cuentas bancarias, enfermedades, etc.):
@@ -233,40 +214,33 @@ namespace Anonimizador___API.Application.Services
             try
             {
                 var response = await _ollama.GenerateAsync(prompt);
-
-                _logger.LogWarning("Ollama raw response: {Response}", response);
-
                 var result = ParseStructuredResponse(response);
-
                 return MergePersons(result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "AI detection failed");
+                _logger.LogError(ex, "Detección con IA falló — usando solo Regex");
                 return new DocumentAnalysisResultDto();
             }
         }
 
         /// <summary>
-        /// Parsea la respuesta estructurada línea por línea.
-        /// Mucho más robusto que parsear JSON libre de Mistral.
+        /// Parsea la respuesta estructurada de Ollama línea por línea.
+        /// Más robusto que parsear JSON libre con modelos como Mistral.
         /// </summary>
         private DocumentAnalysisResultDto ParseStructuredResponse(string response)
         {
             var result = new DocumentAnalysisResultDto();
-            var lines = response.Split('\n',
-                StringSplitOptions.RemoveEmptyEntries);
-
+            var lines = response.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+            var inPersona = false;
+            var inExtra = false;
             DetectedPersonDto? currentPerson = null;
-            bool inExtra = false;
-            bool inPersona = false;
             string? extraType = null;
 
             foreach (var rawLine in lines)
             {
                 var line = rawLine.Trim();
 
-                // Detectar inicio de bloque
                 if (line == "---PERSONA---")
                 {
                     currentPerson = new DetectedPersonDto();
@@ -284,23 +258,12 @@ namespace Anonimizador___API.Application.Services
                     continue;
                 }
 
-                // Detectar fin de bloque
                 if (line == "---FIN---")
                 {
-                    if (inPersona && currentPerson != null)
-                    {
-                        if (currentPerson.FullName != null ||
-                            currentPerson.Identification != null ||
-                            currentPerson.Email != null ||
-                            currentPerson.PhoneNumber != null ||
-                            currentPerson.Position != null ||
-                            currentPerson.Address != null)
-                        {
-                            result.DetectedPersons.Add(currentPerson);
-                        }
-                        currentPerson = null;
-                    }
+                    if (inPersona && currentPerson != null && currentPerson.HasAnyField())
+                        result.DetectedPersons.Add(currentPerson);
 
+                    currentPerson = null;
                     inPersona = false;
                     inExtra = false;
                     continue;
@@ -309,36 +272,22 @@ namespace Anonimizador___API.Application.Services
                 var (key, value) = SplitKeyValue(line);
                 if (value == null || value == "NONE") continue;
 
-                // Parsear campos de persona
                 if (inPersona && currentPerson != null)
                 {
                     switch (key)
                     {
-                        case "NOMBRE":
-                            currentPerson.FullName = value;
-                            break;
-                        case "CEDULA":
-                            currentPerson.Identification = value;
-                            break;
-                        case "EMAIL":
-                            currentPerson.Email = value;
-                            break;
-                        case "TELEFONO":
-                            currentPerson.PhoneNumber = value;
-                            break;
-                        case "CARGO":
-                            currentPerson.Position = value;
-                            break;
-                        case "DIRECCION":
-                            currentPerson.Address = value;
-                            break;
+                        case "NOMBRE": currentPerson.FullName = value; break;
+                        case "CEDULA": currentPerson.Identification = value; break;
+                        case "EMAIL": currentPerson.Email = value; break;
+                        case "TELEFONO": currentPerson.PhoneNumber = value; break;
+                        case "CARGO": currentPerson.Position = value; break;
+                        case "DIRECCION": currentPerson.Address = value; break;
                         case "VARIACIONES":
                             currentPerson.NameVariations = value
                                 .Split(',', StringSplitOptions.RemoveEmptyEntries)
                                 .Select(v => v.Trim())
-                                .Where(v => !string.IsNullOrWhiteSpace(v) &&
+                                .Where(v => v.Length > 2 &&
                                             v != "NONE" &&
-                                            v.Length > 2 &&
                                             !v.Contains("S.A.", StringComparison.OrdinalIgnoreCase) &&
                                             !v.Contains("S.R.L.", StringComparison.OrdinalIgnoreCase) &&
                                             !v.Contains("Ltda", StringComparison.OrdinalIgnoreCase))
@@ -347,20 +296,16 @@ namespace Anonimizador___API.Application.Services
                     }
                 }
 
-                // Parsear datos adicionales
-                if (inExtra)
+                if (inExtra && key == "TIPO")
+                    extraType = value;
+                else if (inExtra && key == "VALOR" && extraType != null)
                 {
-                    if (key == "TIPO")
-                        extraType = value;
-                    else if (key == "VALOR" && extraType != null)
+                    result.AdditionalData.Add(new AdditionalDataDto
                     {
-                        result.AdditionalData.Add(new AdditionalDataDto
-                        {
-                            Type = extraType,
-                            Value = value
-                        });
-                        extraType = null;
-                    }
+                        Type = extraType,
+                        Value = value
+                    });
+                    extraType = null;
                 }
             }
 
@@ -368,9 +313,8 @@ namespace Anonimizador___API.Application.Services
         }
 
         /// <summary>
-        /// Fusiona personas que son en realidad variaciones de una persona ya detectada.
-        /// Ej: si "Mora Sandoval" ya existe como variación de "Carlos Alberto Mora Sandoval",
-        /// no debe aparecer como persona separada.
+        /// Fusiona personas que son variaciones de una ya detectada,
+        /// evitando duplicados en el resultado final.
         /// </summary>
         private DocumentAnalysisResultDto MergePersons(DocumentAnalysisResultDto result)
         {
@@ -386,7 +330,6 @@ namespace Anonimizador___API.Application.Services
 
                 var primary = result.DetectedPersons[i];
 
-                // Si no tiene nombre completo es probablemente una variación
                 if (string.IsNullOrWhiteSpace(primary.FullName))
                 {
                     handled.Add(i);
@@ -399,34 +342,29 @@ namespace Anonimizador___API.Application.Services
 
                     var candidate = result.DetectedPersons[j];
 
-                    // Verificar si el candidato es una variación de la persona primaria
-                    if (IsVariationOf(candidate, primary))
+                    if (!IsVariationOf(candidate, primary)) continue;
+
+                    if (!string.IsNullOrWhiteSpace(candidate.FullName) &&
+                        !primary.NameVariations.Contains(
+                            candidate.FullName, StringComparer.OrdinalIgnoreCase))
                     {
-                        // Fusionar — agregar nombre del candidato como variación
-                        if (!string.IsNullOrWhiteSpace(candidate.FullName) &&
-                            !primary.NameVariations.Contains(candidate.FullName,
-                                StringComparer.OrdinalIgnoreCase))
-                        {
-                            primary.NameVariations.Add(candidate.FullName);
-                        }
-
-                        // Absorber variaciones del candidato
-                        foreach (var v in candidate.NameVariations)
-                        {
-                            if (!primary.NameVariations.Contains(v,
-                                StringComparer.OrdinalIgnoreCase))
-                                primary.NameVariations.Add(v);
-                        }
-
-                        // Completar datos faltantes
-                        primary.Identification ??= candidate.Identification;
-                        primary.Email ??= candidate.Email;
-                        primary.PhoneNumber ??= candidate.PhoneNumber;
-                        primary.Position ??= candidate.Position;
-                        primary.Address ??= candidate.Address;
-
-                        handled.Add(j);
+                        primary.NameVariations.Add(candidate.FullName);
                     }
+
+                    foreach (var v in candidate.NameVariations)
+                    {
+                        if (!primary.NameVariations.Contains(
+                            v, StringComparer.OrdinalIgnoreCase))
+                            primary.NameVariations.Add(v);
+                    }
+
+                    primary.Identification ??= candidate.Identification;
+                    primary.Email ??= candidate.Email;
+                    primary.PhoneNumber ??= candidate.PhoneNumber;
+                    primary.Position ??= candidate.Position;
+                    primary.Address ??= candidate.Address;
+
+                    handled.Add(j);
                 }
 
                 merged.Add(primary);
@@ -438,11 +376,9 @@ namespace Anonimizador___API.Application.Services
         }
 
         /// <summary>
-        /// Determina si un candidato es una variación de la persona primaria.
+        /// Determina si un candidato es una variación del nombre de la persona primaria.
         /// </summary>
-        private bool IsVariationOf(
-            DetectedPersonDto candidate,
-            DetectedPersonDto primary)
+        private bool IsVariationOf(DetectedPersonDto candidate, DetectedPersonDto primary)
         {
             if (string.IsNullOrWhiteSpace(candidate.FullName) ||
                 string.IsNullOrWhiteSpace(primary.FullName))
@@ -451,42 +387,18 @@ namespace Anonimizador___API.Application.Services
             var primaryName = primary.FullName.ToLowerInvariant();
             var candidateName = candidate.FullName.ToLowerInvariant();
 
-            // El candidato es substring del nombre primario
-            if (primaryName.Contains(candidateName))
+            if (primaryName.Contains(candidateName) ||
+                candidateName.Contains(primaryName))
                 return true;
 
-            // El nombre primario es substring del candidato
-            if (candidateName.Contains(primaryName))
-                return true;
+            var primaryWords = primaryName.Split(' ').Where(w => w.Length > 3).ToHashSet();
+            var candidateWords = candidateName.Split(' ').Where(w => w.Length > 3).ToList();
 
-            // Comparten al menos dos palabras significativas
-            var primaryWords = primaryName.Split(' ')
-                .Where(w => w.Length > 3).ToHashSet();
-            var candidateWords = candidateName.Split(' ')
-                .Where(w => w.Length > 3).ToList();
-
-            var sharedWords = candidateWords
-                .Count(w => primaryWords.Contains(w));
-
-            return sharedWords >= 2;
+            return candidateWords.Count(w => primaryWords.Contains(w)) >= 2;
         }
 
         /// <summary>
-        /// Divide una línea "CLAVE: valor" en clave y valor.
-        /// </summary>
-        private (string Key, string? Value) SplitKeyValue(string line)
-        {
-            var idx = line.IndexOf(':');
-            if (idx < 0) return (line, null);
-
-            var key = line[..idx].Trim().ToUpperInvariant();
-            var value = line[(idx + 1)..].Trim();
-
-            return (key, string.IsNullOrWhiteSpace(value) ? null : value);
-        }
-
-        /// <summary>
-        /// Combina los resultados de Regex e IA evitando duplicados.
+        /// Combina los resultados de Regex e IA complementando campos faltantes.
         /// </summary>
         private DocumentAnalysisResultDto MergeResults(
             DocumentAnalysisResultDto regex,
@@ -499,6 +411,7 @@ namespace Anonimizador___API.Application.Services
             foreach (var regexPerson in regex.DetectedPersons)
             {
                 var existing = merged.DetectedPersons.FirstOrDefault();
+
                 if (existing == null)
                 {
                     merged.DetectedPersons.Add(regexPerson);
@@ -511,42 +424,50 @@ namespace Anonimizador___API.Application.Services
                 existing.FullName ??= regexPerson.FullName;
             }
 
-            // Fusionar personas duplicadas del resultado final
             return MergePersons(merged);
         }
 
-        private string? GetNullableString(
-            JsonElement element,
-            string propertyName)
+        /// <summary>
+        /// Divide una línea con formato "CLAVE: valor" en sus dos componentes.
+        /// </summary>
+        private (string Key, string? Value) SplitKeyValue(string line)
         {
-            if (!element.TryGetProperty(propertyName, out var prop))
-                return null;
+            var idx = line.IndexOf(':');
+            if (idx < 0) return (line, null);
 
-            // Si es array, tomar el primer elemento válido
-            if (prop.ValueKind == JsonValueKind.Array)
-            {
-                foreach (var item in prop.EnumerateArray())
-                {
-                    if (item.ValueKind == JsonValueKind.String)
-                    {
-                        var val = item.GetString();
-                        if (!string.IsNullOrWhiteSpace(val) &&
-                            val != "n/a" && val != "null")
-                            return val;
-                    }
-                }
-                return null;
-            }
+            var key = line[..idx].Trim().ToUpperInvariant();
+            var value = line[(idx + 1)..].Trim();
 
-            if (prop.ValueKind == JsonValueKind.Null)
-                return null;
-
-            var value = prop.GetString();
-
-            return string.IsNullOrWhiteSpace(value) ||
-                   value == "n/a" || value == "null"
-                ? null
-                : value;
+            return (key, string.IsNullOrWhiteSpace(value) ? null : value);
         }
+    }
+
+    /// <summary>
+    /// Extensiones de utilidad para strings en el contexto del análisis.
+    /// </summary>
+    internal static class StringExtensions
+    {
+        /// <summary>
+        /// Retorna null si el string está vacío o es whitespace.
+        /// </summary>
+        public static string? NullIfEmpty(this string value) =>
+            string.IsNullOrWhiteSpace(value) ? null : value;
+    }
+
+    /// <summary>
+    /// Extensiones de utilidad para <see cref="DetectedPersonDto"/>.
+    /// </summary>
+    internal static class DetectedPersonExtensions
+    {
+        /// <summary>
+        /// Indica si la persona tiene al menos un campo con valor.
+        /// </summary>
+        public static bool HasAnyField(this DetectedPersonDto person) =>
+            person.FullName != null ||
+            person.Identification != null ||
+            person.Email != null ||
+            person.PhoneNumber != null ||
+            person.Position != null ||
+            person.Address != null;
     }
 }

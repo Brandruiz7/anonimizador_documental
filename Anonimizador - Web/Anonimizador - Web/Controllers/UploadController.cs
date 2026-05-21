@@ -4,8 +4,9 @@ using Microsoft.AspNetCore.Mvc;
 namespace Anonimizador___Web.Controllers
 {
     /// <summary>
-    /// Controlador encargado de recibir el formulario del Web
-    /// y enviarlo a la API para su procesamiento.
+    /// Controlador que actúa como proxy entre el wizard del Web y el API.
+    /// Recibe el formulario multipart, reenvía los datos al API
+    /// y retorna el documento anonimizado al cliente.
     /// </summary>
     [Authorize]
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
@@ -15,6 +16,9 @@ namespace Anonimizador___Web.Controllers
         private readonly IConfiguration _configuration;
         private readonly ILogger<UploadController> _logger;
 
+        /// <summary>
+        /// Inicializa el controlador con sus dependencias.
+        /// </summary>
         public UploadController(
             IConfiguration configuration,
             ILogger<UploadController> logger)
@@ -24,8 +28,8 @@ namespace Anonimizador___Web.Controllers
         }
 
         /// <summary>
-        /// Recibe el formulario multipart, construye el request hacia la API
-        /// con múltiples personas y retorna el documento anonimizado.
+        /// Recibe el formulario del wizard, reenvía los datos al API
+        /// y retorna el documento anonimizado para descarga.
         /// </summary>
         [HttpPost("process")]
         [IgnoreAntiforgeryToken]
@@ -36,11 +40,10 @@ namespace Anonimizador___Web.Controllers
             try
             {
                 var form = await Request.ReadFormAsync();
-
-                // Validar archivo
                 var file = form.Files.GetFile("documento");
+
                 if (file == null || file.Length == 0)
-                    return BadRequest("No file received");
+                    return BadRequest("No se recibió ningún archivo.");
 
                 var apiUrl = _configuration["ApiSettings:BaseUrl"];
                 var token = User.FindFirst("jwt_token")?.Value
@@ -58,22 +61,23 @@ namespace Anonimizador___Web.Controllers
 
                 using var content = new MultipartFormDataContent();
 
-                // Archivo
+                // Adjuntar archivo
                 var fileContent = new StreamContent(file.OpenReadStream());
                 fileContent.Headers.ContentType =
                     new System.Net.Http.Headers.MediaTypeHeaderValue(file.ContentType);
                 content.Add(fileContent, "File", file.FileName);
 
-                // UploadedBy
-                var uploadedBy = User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value
+                // UploadedBy desde el claim del JWT
+                var uploadedBy = User.FindFirst(
+                    System.Security.Claims.ClaimTypes.Name)?.Value
                     ?? form["UploadedBy"].ToString()
                     ?? "unknown";
 
                 content.Add(new StringContent(uploadedBy), "UploadedBy");
 
-                // Personas — leemos todos los índices del form
-                // El front envía: Persons[0].FullName, Persons[1].Email, etc.
+                // Reenviar personas y sus variaciones al API
                 var personIndex = 0;
+
                 while (form.ContainsKey($"Persons[{personIndex}].FullName") ||
                        form.ContainsKey($"Persons[{personIndex}].Identification") ||
                        form.ContainsKey($"Persons[{personIndex}].Email") ||
@@ -83,40 +87,23 @@ namespace Anonimizador___Web.Controllers
                 {
                     var prefix = $"Persons[{personIndex}]";
 
-                    content.Add(
-                        new StringContent(form[$"{prefix}.FullName"].ToString() ?? ""),
-                        $"Persons[{personIndex}].FullName");
-                    content.Add(
-                        new StringContent(form[$"{prefix}.Identification"].ToString() ?? ""),
-                        $"Persons[{personIndex}].Identification");
-                    content.Add(
-                        new StringContent(form[$"{prefix}.Email"].ToString() ?? ""),
-                        $"Persons[{personIndex}].Email");
-                    content.Add(
-                        new StringContent(form[$"{prefix}.PhoneNumber"].ToString() ?? ""),
-                        $"Persons[{personIndex}].PhoneNumber");
-                    content.Add(
-                        new StringContent(form[$"{prefix}.Position"].ToString() ?? ""),
-                        $"Persons[{personIndex}].Position");
-                    content.Add(
-                        new StringContent(form[$"{prefix}.Address"].ToString() ?? ""),
-                        $"Persons[{personIndex}].Address");
+                    content.Add(new StringContent(form[$"{prefix}.FullName"].ToString() ?? ""), $"Persons[{personIndex}].FullName");
+                    content.Add(new StringContent(form[$"{prefix}.Identification"].ToString() ?? ""), $"Persons[{personIndex}].Identification");
+                    content.Add(new StringContent(form[$"{prefix}.Email"].ToString() ?? ""), $"Persons[{personIndex}].Email");
+                    content.Add(new StringContent(form[$"{prefix}.PhoneNumber"].ToString() ?? ""), $"Persons[{personIndex}].PhoneNumber");
+                    content.Add(new StringContent(form[$"{prefix}.Position"].ToString() ?? ""), $"Persons[{personIndex}].Position");
+                    content.Add(new StringContent(form[$"{prefix}.Address"].ToString() ?? ""), $"Persons[{personIndex}].Address");
 
-                    // ← AGREGAR VARIACIONES
+                    // Reenviar variaciones del nombre
                     var variationIndex = 0;
-                    while (form.ContainsKey(
-                        $"Persons[{personIndex}].NameVariations[{variationIndex}]"))
+                    while (form.ContainsKey($"Persons[{personIndex}].NameVariations[{variationIndex}]"))
                     {
-                        var variation = form[
-                            $"Persons[{personIndex}].NameVariations[{variationIndex}]"]
-                            .ToString();
+                        var variation = form[$"Persons[{personIndex}].NameVariations[{variationIndex}]"].ToString();
 
                         if (!string.IsNullOrWhiteSpace(variation))
-                        {
                             content.Add(
                                 new StringContent(variation),
                                 $"Persons[{personIndex}].NameVariations[{variationIndex}]");
-                        }
 
                         variationIndex++;
                     }
@@ -124,22 +111,11 @@ namespace Anonimizador___Web.Controllers
                     personIndex++;
                 }
 
-                // Después del while de personas
-                _logger.LogWarning("Persons sent: {Count}", personIndex);
-
-                // Verificar variaciones en el form
-                foreach (var key in form.Keys)
-                {
-                    if (key.Contains("NameVariations"))
-                        _logger.LogWarning("Form key: {Key} = {Value}",
-                            key, form[key].ToString());
-                }
-
                 if (personIndex == 0)
-                    return BadRequest("At least one person must be provided");
+                    return BadRequest("Debe proporcionar al menos una persona.");
 
                 _logger.LogInformation(
-                    "Calling API: {Url} | Persons: {Count}",
+                    "Enviando al API: {Url} | Personas: {Count}",
                     $"{apiUrl}/api/documents/upload",
                     personIndex);
 
@@ -149,22 +125,20 @@ namespace Anonimizador___Web.Controllers
                 if (!response.IsSuccessStatusCode)
                 {
                     var errorBody = await response.Content.ReadAsStringAsync();
-                    _logger.LogError("API error: {Status} {Body}",
+                    _logger.LogError(
+                        "Error en API: {Status} | {Body}",
                         response.StatusCode, errorBody);
                     return StatusCode((int)response.StatusCode, errorBody);
                 }
 
                 var fileBytes = await response.Content.ReadAsByteArrayAsync();
-                var fileName = $"ANONYMIZED_{file.FileName}";
+                var contentType = file.ContentType ?? "application/octet-stream";
 
-                var contentType = file.ContentType ??
-                    "application/octet-stream";
-
-                return File(fileBytes, contentType, fileName);
+                return File(fileBytes, contentType, $"ANONYMIZED_{file.FileName}");
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error in Upload.Process: {Message}", ex.Message);
+                _logger.LogError(ex, "Error en Upload.Process");
                 return StatusCode(500, ex.Message);
             }
         }

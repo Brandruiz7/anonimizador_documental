@@ -1,20 +1,21 @@
-﻿using Anonimizador___API.Application.DTOs;
+﻿using Anonimizador___API.Application.DTOs.Documents;
 
 namespace Anonimizador___API.Application.Common
 {
     /// <summary>
-    /// Engine responsible for text anonymization logic.
-    /// Reusable across Word, PDF, OCR and future processors.
+    /// Motor de anonimización de texto reutilizable entre procesadores.
+    /// Aplica reemplazos sobre texto plano y registra la auditoría de cada campo.
     /// </summary>
     public static class TextAnonymizationEngine
     {
         /// <summary>
-        /// Applies anonymization targets to a text input.
+        /// Aplica todos los targets de anonimización sobre un texto de entrada.
+        /// Genera etiquetas con formato [Px-Campo] según el índice de persona.
         /// </summary>
-        /// <param name="input">Original text.</param>
-        /// <param name="targets">Targets to anonymize.</param>
-        /// <param name="auditFields">Audit accumulator.</param>
-        /// <returns>Anonymized text.</returns>
+        /// <param name="input">Texto original a anonimizar.</param>
+        /// <param name="targets">Lista de datos sensibles a reemplazar.</param>
+        /// <param name="auditFields">Acumulador de auditoría para registrar cada reemplazo.</param>
+        /// <returns>Texto con los datos sensibles reemplazados por etiquetas.</returns>
         public static string ApplyTargets(
             string input,
             List<AnonymizationTargetDto> targets,
@@ -23,54 +24,31 @@ namespace Anonimizador___API.Application.Common
             if (string.IsNullOrWhiteSpace(input))
                 return input;
 
-            for (int i = 0; i < targets.Count; i++)
+            foreach (var target in targets)
             {
-                var target = targets[i];
-                var personLabel = $"P{target.PersonIndex + 1}";
+                var label = $"P{target.PersonIndex + 1}";
 
-                input = ReplaceAndAudit(
-                    input, target.FullName,
-                    $"[{personLabel}-Nombre]",
-                    $"{personLabel}-Nombre",
-                    auditFields);
-
-                input = ReplaceAndAudit(
-                    input, target.Identification,
-                    $"[{personLabel}-Cédula]",
-                    $"{personLabel}-Cédula",
-                    auditFields);
-
-                input = ReplaceAndAudit(
-                    input, target.Email,
-                    $"[{personLabel}-Correo]",
-                    $"{personLabel}-Correo",
-                    auditFields);
-
-                input = ReplaceAndAudit(
-                    input, target.PhoneNumber,
-                    $"[{personLabel}-Tel]",
-                    $"{personLabel}-Tel",
-                    auditFields);
-
-                input = ReplaceAndAudit(
-                    input, target.Position,
-                    $"[{personLabel}-Cargo]",
-                    $"{personLabel}-Cargo",
-                    auditFields);
-
-                input = ReplaceAndAudit(
-                    input, target.Address,
-                    $"[{personLabel}-Dir]",
-                    $"{personLabel}-Dir",
-                    auditFields);
+                input = ReplaceAndAudit(input, target.FullName, $"[{label}-Nombre]", $"{label}-Nombre", auditFields);
+                input = ReplaceAndAudit(input, target.Identification, $"[{label}-Cédula]", $"{label}-Cédula", auditFields);
+                input = ReplaceAndAudit(input, target.Email, $"[{label}-Correo]", $"{label}-Correo", auditFields);
+                input = ReplaceAndAudit(input, target.PhoneNumber, $"[{label}-Tel]", $"{label}-Tel", auditFields);
+                input = ReplaceAndAudit(input, target.Position, $"[{label}-Cargo]", $"{label}-Cargo", auditFields);
+                input = ReplaceAndAudit(input, target.Address, $"[{label}-Dir]", $"{label}-Dir", auditFields);
             }
 
             return input;
         }
 
         /// <summary>
-        /// Replaces a value and registers audit information.
+        /// Reemplaza un valor en el texto y registra la auditoría si no fue registrado antes.
+        /// Usa comparación sin distinción de mayúsculas.
         /// </summary>
+        /// <param name="input">Texto sobre el que se aplica el reemplazo.</param>
+        /// <param name="originalValue">Valor a buscar y reemplazar.</param>
+        /// <param name="replacement">Etiqueta de reemplazo.</param>
+        /// <param name="fieldType">Tipo de campo para auditoría.</param>
+        /// <param name="auditFields">Acumulador de auditoría.</param>
+        /// <returns>Texto con el valor reemplazado.</returns>
         private static string ReplaceAndAudit(
             string input,
             string? originalValue,
@@ -86,9 +64,7 @@ namespace Anonimizador___API.Application.Common
 
             var alreadyAudited = auditFields.Any(a =>
                 a.FieldType == fieldType &&
-                a.OriginalValue.Equals(
-                    originalValue,
-                    StringComparison.OrdinalIgnoreCase));
+                a.OriginalValue.Equals(originalValue, StringComparison.OrdinalIgnoreCase));
 
             if (!alreadyAudited)
             {
@@ -100,10 +76,7 @@ namespace Anonimizador___API.Application.Common
                 });
             }
 
-            return input.Replace(
-                originalValue,
-                replacement,
-                StringComparison.OrdinalIgnoreCase);
+            return input.Replace(originalValue, replacement, StringComparison.OrdinalIgnoreCase);
         }
     }
 }

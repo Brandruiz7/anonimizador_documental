@@ -1,37 +1,40 @@
 /*****************************************************************************************
- Project    : DocumentAnonymizerDB
- Description: Document anonymization system with full traceability.
-              Supports versioning, audit logging, anonymization tracking
-              and error management.
+ Proyecto    : DocumentAnonymizerDB
+ Descripción : Sistema de anonimización documental con trazabilidad completa.
+               Soporta versionado, auditoría, seguimiento de campos anonimizados
+               y gestión de errores.
 
-              Core features:
-              - Duplicate detection via file hash
-              - Document versioning (ORIGINAL / ANONYMIZED)
-              - Field-level anonymization tracking
-              - Process status lifecycle
-              - Error logging for observability
+               Funcionalidades principales:
+               - Registro de documentos procesados
+               - Versionado de documentos (ORIGINAL / ANONYMIZED)
+               - Auditoría a nivel de campo anonimizado
+               - Ciclo de vida del estado del proceso
+               - Registro centralizado de errores
 
- Author     : Ruiz
- Date       : 2026
+ Autor       : Ruiz
+ Fecha       : 2026
 *****************************************************************************************/
 
 USE DocumentAnonymizerDB;
 GO
 
--------------------------------------------------------------------
--- DROPS (SAFE RE-RUN)
--- Orden: hijo -> padre para respetar FK
--------------------------------------------------------------------
+-- =============================================
+-- LIMPIEZA SEGURA PARA RE-EJECUCIÓN
+-- Orden: hijo → padre para respetar FK
+-- =============================================
 
 IF OBJECT_ID('SP_ANONYMIZED_FIELD_INSERT',        'P') IS NOT NULL DROP PROCEDURE SP_ANONYMIZED_FIELD_INSERT;
 IF OBJECT_ID('SP_DOCUMENT_VERSION_INSERT',        'P') IS NOT NULL DROP PROCEDURE SP_DOCUMENT_VERSION_INSERT;
 IF OBJECT_ID('SP_DOCUMENT_PROCESS_UPDATE_STATUS', 'P') IS NOT NULL DROP PROCEDURE SP_DOCUMENT_PROCESS_UPDATE_STATUS;
 IF OBJECT_ID('SP_DOCUMENT_PROCESS_INSERT',        'P') IS NOT NULL DROP PROCEDURE SP_DOCUMENT_PROCESS_INSERT;
-IF OBJECT_ID('SP_DOCUMENT_UPDATE_STATUS',         'P') IS NOT NULL DROP PROCEDURE SP_DOCUMENT_UPDATE_STATUS;
-IF OBJECT_ID('SP_DOCUMENT_INSERT',                'P') IS NOT NULL DROP PROCEDURE SP_DOCUMENT_INSERT;
+IF OBJECT_ID('SP_DOCUMENT_GET_ALL',               'P') IS NOT NULL DROP PROCEDURE SP_DOCUMENT_GET_ALL;
 IF OBJECT_ID('SP_DOCUMENT_GET_FULL',              'P') IS NOT NULL DROP PROCEDURE SP_DOCUMENT_GET_FULL;
 IF OBJECT_ID('SP_DOCUMENT_GET_BY_HASH',           'P') IS NOT NULL DROP PROCEDURE SP_DOCUMENT_GET_BY_HASH;
 IF OBJECT_ID('SP_USER_GET_BY_USERNAME',           'P') IS NOT NULL DROP PROCEDURE SP_USER_GET_BY_USERNAME;
+IF OBJECT_ID('SP_METRICS_DOCUMENTS_BY_MONTH',     'P') IS NOT NULL DROP PROCEDURE SP_METRICS_DOCUMENTS_BY_MONTH;
+IF OBJECT_ID('SP_METRICS_DOCUMENTS_BY_STATUS',    'P') IS NOT NULL DROP PROCEDURE SP_METRICS_DOCUMENTS_BY_STATUS;
+IF OBJECT_ID('SP_METRICS_DOCUMENTS_BY_USER',      'P') IS NOT NULL DROP PROCEDURE SP_METRICS_DOCUMENTS_BY_USER;
+IF OBJECT_ID('SP_METRICS_SUMMARY',                'P') IS NOT NULL DROP PROCEDURE SP_METRICS_SUMMARY;
 GO
 
 IF OBJECT_ID('ANONYMIZED_FIELDS',  'U') IS NOT NULL DROP TABLE ANONYMIZED_FIELDS;
@@ -43,18 +46,15 @@ IF OBJECT_ID('USERS',              'U') IS NOT NULL DROP TABLE USERS;
 IF OBJECT_ID('ROLES',              'U') IS NOT NULL DROP TABLE ROLES;
 GO
 
--------------------------------------------------------------------
--- TABLES
--------------------------------------------------------------------
+-- =============================================
+-- TABLAS
+-- =============================================
 
 -- =============================================
--- TABLE: PROCESS_STATUS
+-- TABLA: PROCESS_STATUS
 -- Catálogo de estados del documento.
---
--- 1 = UPLOADED
--- 2 = PROCESSING
--- 3 = ANONYMIZED
--- 4 = FAILED
+-- 1 = UPLOADED | 2 = PROCESSING
+-- 3 = ANONYMIZED | 4 = FAILED
 -- =============================================
 CREATE TABLE PROCESS_STATUS (
     StatusId INT          PRIMARY KEY,
@@ -63,9 +63,8 @@ CREATE TABLE PROCESS_STATUS (
 GO
 
 -- =============================================
--- TABLE: DOCUMENTS
+-- TABLA: DOCUMENTS
 -- Entidad principal del sistema.
--- Identificada de forma única por su hash.
 -- =============================================
 CREATE TABLE DOCUMENTS (
     DocumentId           INT           IDENTITY(1,1) PRIMARY KEY,
@@ -85,9 +84,9 @@ CREATE TABLE DOCUMENTS (
 GO
 
 -- =============================================
--- TABLE: DOCUMENT_VERSIONS
--- Versiones de cada documento.
--- Tipos: ORIGINAL / ANONYMIZED
+-- TABLA: DOCUMENT_VERSIONS
+-- Versiones de cada documento procesado.
+-- Tipos válidos: ORIGINAL / ANONYMIZED
 -- =============================================
 CREATE TABLE DOCUMENT_VERSIONS (
     VersionId   INT           IDENTITY(1,1) PRIMARY KEY,
@@ -106,7 +105,7 @@ CREATE TABLE DOCUMENT_VERSIONS (
 GO
 
 -- =============================================
--- TABLE: ANONYMIZED_FIELDS
+-- TABLA: ANONYMIZED_FIELDS
 -- Registro de cada dato sensible anonimizado.
 -- DetectionMethod: REGEX / AI
 -- =============================================
@@ -129,8 +128,8 @@ CREATE TABLE ANONYMIZED_FIELDS (
 GO
 
 -- =============================================
--- TABLE: PROCESS_ERRORS
--- Registro centralizado de errores.
+-- TABLA: PROCESS_ERRORS
+-- Registro centralizado de errores del sistema.
 -- =============================================
 CREATE TABLE PROCESS_ERRORS (
     ErrorId    INT           IDENTITY(1,1) PRIMARY KEY,
@@ -145,7 +144,7 @@ CREATE TABLE PROCESS_ERRORS (
 GO
 
 -- =============================================
--- TABLE: ROLES
+-- TABLA: ROLES
 -- =============================================
 CREATE TABLE ROLES (
     RoleId   INT          IDENTITY(1,1) PRIMARY KEY,
@@ -154,35 +153,35 @@ CREATE TABLE ROLES (
 GO
 
 -- =============================================
--- TABLE: USERS
+-- TABLA: USERS
 -- Contraseñas almacenadas como BCrypt hash.
--- Los usuarios los crea el admin directamente en BD.
+-- Los usuarios los crea el administrador directamente en BD.
 -- =============================================
 CREATE TABLE USERS (
     UserId       INT            IDENTITY(1,1) PRIMARY KEY,
     Username     NVARCHAR(100)  NOT NULL UNIQUE,
     PasswordHash NVARCHAR(256)  NOT NULL,
+    FullName     NVARCHAR(200)  NULL,        
     RoleId       INT            NOT NULL REFERENCES ROLES(RoleId),
     IsActive     BIT            NOT NULL DEFAULT 1,
     CreatedAt    DATETIME2      NOT NULL DEFAULT SYSDATETIME()
 );
+
+-- =============================================
+-- ÍNDICES
+-- =============================================
+
+CREATE INDEX IX_DOCUMENTS_Status         ON DOCUMENTS        (CurrentStatusId);
+CREATE INDEX IX_DOCUMENTS_CreatedAt      ON DOCUMENTS        (CreatedAt DESC);
+CREATE INDEX IX_DOCUMENTS_Status_Created ON DOCUMENTS        (CurrentStatusId, CreatedAt DESC);
+CREATE INDEX IX_VERSIONS_DocumentId      ON DOCUMENT_VERSIONS(DocumentId);
+CREATE INDEX IX_FIELDS_VersionId         ON ANONYMIZED_FIELDS(VersionId);
+CREATE INDEX IX_FIELDS_Type              ON ANONYMIZED_FIELDS(FieldType);
 GO
 
--------------------------------------------------------------------
--- INDEXES
--------------------------------------------------------------------
-
-CREATE INDEX IX_DOCUMENTS_Status               ON DOCUMENTS        (CurrentStatusId);
-CREATE INDEX IX_DOCUMENTS_CreatedAt            ON DOCUMENTS        (CreatedAt DESC);
-CREATE INDEX IX_DOCUMENTS_Status_Created       ON DOCUMENTS        (CurrentStatusId, CreatedAt DESC);
-CREATE INDEX IX_VERSIONS_DocumentId            ON DOCUMENT_VERSIONS(DocumentId);
-CREATE INDEX IX_FIELDS_VersionId               ON ANONYMIZED_FIELDS(VersionId);
-CREATE INDEX IX_FIELDS_Type                    ON ANONYMIZED_FIELDS(FieldType);
-GO
-
--------------------------------------------------------------------
--- DATA: Catálogo de estados
--------------------------------------------------------------------
+-- =============================================
+-- DATOS: Catálogo de estados del proceso
+-- =============================================
 
 INSERT INTO PROCESS_STATUS (StatusId, Name) VALUES
     (1, 'UPLOADED'),
@@ -191,64 +190,9 @@ INSERT INTO PROCESS_STATUS (StatusId, Name) VALUES
     (4, 'FAILED');
 GO
 
--------------------------------------------------------------------
+-- =============================================
 -- STORED PROCEDURES
--------------------------------------------------------------------
-
 -- =============================================
--- SP: SP_DOCUMENT_INSERT
--- Inserta un documento nuevo. Estado inicial: UPLOADED.
--- Retorna: DocumentId generado.
--- =============================================
-CREATE OR ALTER PROCEDURE SP_DOCUMENT_INSERT
-(
-    @OriginalFileName NVARCHAR(255),
-    @ContentType      NVARCHAR(100),
-    @FileSizeKB       BIGINT,
-    @FileHash         NVARCHAR(256),
-    @UploadedBy       NVARCHAR(100)
-)
-AS
-BEGIN
-    SET NOCOUNT ON;
-    BEGIN TRY
-        INSERT INTO DOCUMENTS (OriginalFileName, ContentType, FileSizeKB, FileHash, UploadedBy, CurrentStatusId)
-        VALUES (@OriginalFileName, @ContentType, @FileSizeKB, @FileHash, @UploadedBy, 1);
-
-        SELECT CAST(SCOPE_IDENTITY() AS INT) AS DocumentId;
-    END TRY
-    BEGIN CATCH
-        INSERT INTO PROCESS_ERRORS (Message, StackTrace) VALUES (ERROR_MESSAGE(), ERROR_PROCEDURE());
-        THROW;
-    END CATCH
-END;
-GO
-
--- =============================================
--- SP: SP_DOCUMENT_UPDATE_STATUS
--- Actualiza el estado de un documento.
--- Si estado = 3 (ANONYMIZED) → IsProcessed = 1.
--- =============================================
-CREATE OR ALTER PROCEDURE SP_DOCUMENT_UPDATE_STATUS
-(
-    @DocumentId INT,
-    @StatusId   INT
-)
-AS
-BEGIN
-    SET NOCOUNT ON;
-    BEGIN TRY
-        UPDATE DOCUMENTS
-        SET CurrentStatusId = @StatusId,
-            IsProcessed     = CASE WHEN @StatusId = 3 THEN 1 ELSE 0 END
-        WHERE DocumentId = @DocumentId;
-    END TRY
-    BEGIN CATCH
-        INSERT INTO PROCESS_ERRORS (DocumentId, Message, StackTrace) VALUES (@DocumentId, ERROR_MESSAGE(), ERROR_PROCEDURE());
-        THROW;
-    END CATCH
-END;
-GO
 
 -- =============================================
 -- SP: SP_DOCUMENT_PROCESS_INSERT
@@ -267,13 +211,26 @@ AS
 BEGIN
     SET NOCOUNT ON;
     BEGIN TRY
-        INSERT INTO DOCUMENTS (OriginalFileName, ContentType, FileSizeKB, FileHash, UploadedBy, CurrentStatusId)
-        VALUES (@FileName, @ContentType, @FileSizeKb, @Hash, @UploadedBy, 2);
+        INSERT INTO DOCUMENTS (
+            OriginalFileName,
+            ContentType,
+            FileSizeKB,
+            FileHash,
+            UploadedBy,
+            CurrentStatusId)
+        VALUES (
+            @FileName,
+            @ContentType,
+            @FileSizeKb,
+            @Hash,
+            @UploadedBy,
+            2);
 
         SELECT CAST(SCOPE_IDENTITY() AS INT);
     END TRY
     BEGIN CATCH
-        INSERT INTO PROCESS_ERRORS (Message, StackTrace) VALUES (ERROR_MESSAGE(), ERROR_PROCEDURE());
+        INSERT INTO PROCESS_ERRORS (Message, StackTrace)
+        VALUES (ERROR_MESSAGE(), ERROR_PROCEDURE());
         THROW;
     END CATCH
 END;
@@ -282,6 +239,7 @@ GO
 -- =============================================
 -- SP: SP_DOCUMENT_PROCESS_UPDATE_STATUS
 -- Actualiza el estado del proceso de anonimización.
+-- Si estado = 3 (ANONYMIZED) → IsProcessed = 1.
 -- =============================================
 CREATE OR ALTER PROCEDURE SP_DOCUMENT_PROCESS_UPDATE_STATUS
 (
@@ -298,7 +256,8 @@ BEGIN
         WHERE DocumentId = @DocumentId;
     END TRY
     BEGIN CATCH
-        INSERT INTO PROCESS_ERRORS (DocumentId, Message, StackTrace) VALUES (@DocumentId, ERROR_MESSAGE(), ERROR_PROCEDURE());
+        INSERT INTO PROCESS_ERRORS (DocumentId, Message, StackTrace)
+        VALUES (@DocumentId, ERROR_MESSAGE(), ERROR_PROCEDURE());
         THROW;
     END CATCH
 END;
@@ -320,13 +279,22 @@ AS
 BEGIN
     SET NOCOUNT ON;
     BEGIN TRY
-        INSERT INTO DOCUMENT_VERSIONS (DocumentId, VersionType, FilePath, FileHash)
-        VALUES (@DocumentId, @VersionType, @FilePath, @FileHash);
+        INSERT INTO DOCUMENT_VERSIONS (
+            DocumentId,
+            VersionType,
+            FilePath,
+            FileHash)
+        VALUES (
+            @DocumentId,
+            @VersionType,
+            @FilePath,
+            @FileHash);
 
         SELECT CAST(SCOPE_IDENTITY() AS INT);
     END TRY
     BEGIN CATCH
-        INSERT INTO PROCESS_ERRORS (DocumentId, Message, StackTrace) VALUES (@DocumentId, ERROR_MESSAGE(), ERROR_PROCEDURE());
+        INSERT INTO PROCESS_ERRORS (DocumentId, Message, StackTrace)
+        VALUES (@DocumentId, ERROR_MESSAGE(), ERROR_PROCEDURE());
         THROW;
     END CATCH
 END;
@@ -335,7 +303,7 @@ GO
 -- =============================================
 -- SP: SP_ANONYMIZED_FIELD_INSERT
 -- Registra un campo anonimizado para auditoría.
--- ConfidenceScore se hardcodea en 100.00 para detección REGEX.
+-- ConfidenceScore se hardcodea en 100.00.
 -- =============================================
 CREATE OR ALTER PROCEDURE SP_ANONYMIZED_FIELD_INSERT
 (
@@ -349,11 +317,24 @@ AS
 BEGIN
     SET NOCOUNT ON;
     BEGIN TRY
-        INSERT INTO ANONYMIZED_FIELDS (VersionId, FieldType, OriginalValue, AnonymizedValue, ConfidenceScore, DetectionMethod)
-        VALUES (@VersionId, @FieldType, @OriginalValue, @AnonymizedValue, 100.00, @DetectionMethod);
+        INSERT INTO ANONYMIZED_FIELDS (
+            VersionId,
+            FieldType,
+            OriginalValue,
+            AnonymizedValue,
+            ConfidenceScore,
+            DetectionMethod)
+        VALUES (
+            @VersionId,
+            @FieldType,
+            @OriginalValue,
+            @AnonymizedValue,
+            100.00,
+            @DetectionMethod);
     END TRY
     BEGIN CATCH
-        INSERT INTO PROCESS_ERRORS (Message, StackTrace) VALUES (ERROR_MESSAGE(), ERROR_PROCEDURE());
+        INSERT INTO PROCESS_ERRORS (Message, StackTrace)
+        VALUES (ERROR_MESSAGE(), ERROR_PROCEDURE());
         THROW;
     END CATCH
 END;
@@ -376,7 +357,7 @@ GO
 -- =============================================
 -- SP: SP_DOCUMENT_GET_FULL
 -- Retorna metadata, versiones y campos anonimizados
--- de un documento completo. Útil para auditoría.
+-- de un documento. Útil para auditoría detallada.
 -- =============================================
 CREATE OR ALTER PROCEDURE SP_DOCUMENT_GET_FULL
 (
@@ -386,8 +367,7 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    SELECT * FROM DOCUMENTS WHERE DocumentId = @DocumentId;
-
+    SELECT * FROM DOCUMENTS       WHERE DocumentId = @DocumentId;
     SELECT * FROM DOCUMENT_VERSIONS WHERE DocumentId = @DocumentId;
 
     SELECT AF.*
@@ -399,8 +379,8 @@ GO
 
 -- =============================================
 -- SP: SP_USER_GET_BY_USERNAME
--- Busca un usuario activo por username.
--- Retorna: datos del usuario + rol.
+-- Busca un usuario activo por nombre de usuario.
+-- Retorna: datos del usuario y su rol.
 -- =============================================
 CREATE OR ALTER PROCEDURE SP_USER_GET_BY_USERNAME
     @Username NVARCHAR(100)
@@ -411,6 +391,7 @@ BEGIN
     SELECT
         u.UserId,
         u.Username,
+        u.FullName,
         u.PasswordHash,
         u.IsActive,
         r.RoleName
@@ -445,7 +426,7 @@ GO
 
 -- =============================================
 -- SP: SP_METRICS_DOCUMENTS_BY_MONTH
--- Documentos procesados por mes (últimos 6 meses)
+-- Documentos procesados por mes (últimos 6 meses).
 -- =============================================
 CREATE OR ALTER PROCEDURE SP_METRICS_DOCUMENTS_BY_MONTH
 AS
@@ -469,7 +450,7 @@ GO
 
 -- =============================================
 -- SP: SP_METRICS_DOCUMENTS_BY_STATUS
--- Documentos agrupados por estado
+-- Documentos agrupados por estado.
 -- =============================================
 CREATE OR ALTER PROCEDURE SP_METRICS_DOCUMENTS_BY_STATUS
 AS
@@ -477,7 +458,7 @@ BEGIN
     SET NOCOUNT ON;
 
     SELECT
-        ps.Name AS Status,
+        ps.Name             AS Status,
         COUNT(d.DocumentId) AS Total
     FROM PROCESS_STATUS ps
     LEFT JOIN DOCUMENTS d ON d.CurrentStatusId = ps.StatusId
@@ -488,7 +469,7 @@ GO
 
 -- =============================================
 -- SP: SP_METRICS_DOCUMENTS_BY_USER
--- Documentos agrupados por usuario
+-- Documentos agrupados por usuario.
 -- =============================================
 CREATE OR ALTER PROCEDURE SP_METRICS_DOCUMENTS_BY_USER
 AS
@@ -496,8 +477,8 @@ BEGIN
     SET NOCOUNT ON;
 
     SELECT
-        UploadedBy  AS Username,
-        COUNT(*)    AS Total
+        UploadedBy AS Username,
+        COUNT(*)   AS Total
     FROM DOCUMENTS
     GROUP BY UploadedBy
     ORDER BY Total DESC;
@@ -506,7 +487,8 @@ GO
 
 -- =============================================
 -- SP: SP_METRICS_SUMMARY
--- Tarjetas de resumen: total, este mes, usuarios activos
+-- Resumen general: total de documentos,
+-- procesados este mes y usuarios activos.
 -- =============================================
 CREATE OR ALTER PROCEDURE SP_METRICS_SUMMARY
 AS
@@ -524,17 +506,16 @@ BEGIN
 END;
 GO
 
--------------------------------------------------------------------
--- DATA: Roles y usuario admin inicial
--- Password: Admin123!
--------------------------------------------------------------------
+-- =============================================
+-- DATOS: Roles y usuario administrador inicial
+-- Contraseña por defecto: Admin123!
+-- IMPORTANTE: Cambiar en producción
+-- =============================================
 
 INSERT INTO ROLES (RoleName) VALUES ('Admin');
 INSERT INTO ROLES (RoleName) VALUES ('Operator');
 GO
 
--- IMPORTANTE: Actualiza el hash con el generado por el endpoint
--- GET /api/auth/generate-hash?password=TuPassword
 INSERT INTO USERS (Username, PasswordHash, RoleId)
 VALUES (
     'admin',
@@ -542,7 +523,3 @@ VALUES (
     1
 );
 GO
-
-SELECT * FROM ANONYMIZED_FIELDS ORDER BY CreatedAt DESC;
-SELECT * FROM DOCUMENT_VERSIONS ORDER BY GeneratedAt DESC;
-SELECT * FROM DOCUMENTS ORDER BY CreatedAt DESC;

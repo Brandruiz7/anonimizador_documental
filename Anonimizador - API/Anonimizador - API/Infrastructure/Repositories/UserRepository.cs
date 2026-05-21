@@ -1,27 +1,27 @@
-﻿using Dapper;
-using Anonimizador___API.Application.DTOs;
+﻿using Anonimizador___API.Application.DTOs.Auth;
 using Anonimizador___API.Infrastructure.Data;
 using Anonimizador___API.Interfaces.Repositories;
+using Dapper;
 using System.Data;
 
 namespace Anonimizador___API.Infrastructure.Repositories
 {
     /// <summary>
-    /// Acceso a datos de usuarios.
+    /// Repositorio de acceso a datos de usuarios del sistema.
     /// </summary>
     public class UserRepository : IUserRepository
     {
         private readonly DbConnectionFactory _factory;
 
+        /// <summary>
+        /// Inicializa el repositorio con la fábrica de conexiones.
+        /// </summary>
         public UserRepository(DbConnectionFactory factory)
         {
             _factory = factory;
         }
 
-        /// <summary>
-        /// Busca un usuario por su username.
-        /// Retorna null si no existe.
-        /// </summary>
+        /// <inheritdoc />
         public async Task<UserDto?> GetByUsernameAsync(string username)
         {
             using var connection = _factory.CreateConnection();

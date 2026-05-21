@@ -9,12 +9,19 @@ using System.Text.Json;
 
 namespace Anonimizador___Web.Controllers
 {
+    /// <summary>
+    /// Controlador de autenticación.
+    /// Gestiona el inicio y cierre de sesión mediante cookies cifradas.
+    /// </summary>
     [Route("auth")]
     public class AuthController : Controller
     {
         private readonly IConfiguration _configuration;
         private readonly ILogger<AuthController> _logger;
 
+        /// <summary>
+        /// Inicializa el controlador con sus dependencias.
+        /// </summary>
         public AuthController(
             IConfiguration configuration,
             ILogger<AuthController> logger)
@@ -23,10 +30,13 @@ namespace Anonimizador___Web.Controllers
             _logger = logger;
         }
 
+        /// <summary>
+        /// Muestra el formulario de login.
+        /// Redirige al inicio si el usuario ya está autenticado.
+        /// </summary>
         [HttpGet("login")]
         public IActionResult Login(string? returnUrl = null)
         {
-            // Si ya está autenticado, redirige al inicio
             if (User.Identity?.IsAuthenticated == true)
                 return RedirectToAction("Index", "Home");
 
@@ -34,6 +44,10 @@ namespace Anonimizador___Web.Controllers
             return View();
         }
 
+        /// <summary>
+        /// Procesa las credenciales del formulario de login.
+        /// Si son válidas, genera una cookie de sesión con el JWT.
+        /// </summary>
         [HttpPost("login")]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Login(
@@ -67,7 +81,7 @@ namespace Anonimizador___Web.Controllers
 
                 if (!response.IsSuccessStatusCode)
                 {
-                    ModelState.AddModelError("", "Usuario o contraseña incorrectos");
+                    ModelState.AddModelError("", "Usuario o contraseña incorrectos.");
                     return View(model);
                 }
 
@@ -76,13 +90,15 @@ namespace Anonimizador___Web.Controllers
 
                 var token = loginResponse.GetProperty("token").GetString()!;
                 var username = loginResponse.GetProperty("username").GetString()!;
+                var fullName = loginResponse.GetProperty("fullName").GetString() ?? string.Empty;
                 var role = loginResponse.GetProperty("role").GetString()!;
 
                 var claims = new List<Claim>
                 {
-                    new Claim(ClaimTypes.Name,  username),
-                    new Claim(ClaimTypes.Role,  role),
-                    new Claim("jwt_token",      token)
+                    new(ClaimTypes.Name, username),
+                    new(ClaimTypes.GivenName,  fullName),
+                    new(ClaimTypes.Role, role),
+                    new("jwt_token",     token)
                 };
 
                 var identity = new ClaimsIdentity(
@@ -95,11 +111,12 @@ namespace Anonimizador___Web.Controllers
                     principal,
                     new AuthenticationProperties
                     {
-                        IsPersistent = false, // ← se elimina al cerrar el navegador
+                        IsPersistent = false,
                         ExpiresUtc = DateTimeOffset.UtcNow.AddMinutes(30)
                     });
 
-                _logger.LogInformation("User {Username} logged in", username);
+                _logger.LogInformation(
+                    "Login exitoso: {Username} | Rol: {Role}", username, role);
 
                 if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl))
                     return Redirect(returnUrl);
@@ -108,12 +125,15 @@ namespace Anonimizador___Web.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Login error");
-                ModelState.AddModelError("", "Error de conexión con el servicio");
+                _logger.LogError(ex, "Error durante el login");
+                ModelState.AddModelError("", "Error de conexión con el servicio.");
                 return View(model);
             }
         }
 
+        /// <summary>
+        /// Cierra la sesión del usuario eliminando la cookie de autenticación.
+        /// </summary>
         [HttpGet("logout")]
         public async Task<IActionResult> Logout()
         {
@@ -124,15 +144,11 @@ namespace Anonimizador___Web.Controllers
         }
 
         /// <summary>
-        /// Renueva la sesión del usuario si está autenticado.
+        /// Renueva la sesión del usuario disparando el mecanismo de
+        /// sliding expiration de la cookie. Usado por el timer del cliente.
         /// </summary>
         [HttpPost("renew")]
         [Authorize]
-        public IActionResult Renew()
-        {
-            // El SlidingExpiration en la cookie ya renueva automáticamente
-            // con cada request — este endpoint solo sirve para disparar ese mecanismo
-            return Ok();
-        }
+        public IActionResult Renew() => Ok();
     }
 }

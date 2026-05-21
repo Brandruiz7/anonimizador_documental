@@ -1,19 +1,18 @@
-﻿using Anonimizador___API.Application.DTOs;
+﻿using Anonimizador___API.Application.DTOs.Auth;
 using Anonimizador___API.Interfaces.Repositories;
 using Anonimizador___API.Interfaces.Services;
-using DocumentFormat.OpenXml.Math;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
-using BCrypt.Net;
 
-namespace Anonimizador___API.Application.Services
+namespace Anonimizador___API.Application.Services.Auth
 {
     /// <summary>
-    /// Servicio de autenticación. Valida credenciales y genera JWT.
+    /// Servicio de autenticación.
+    /// Valida credenciales contra la base de datos y genera tokens JWT.
     /// </summary>
     public class AuthService : IAuthService
     {
@@ -21,6 +20,9 @@ namespace Anonimizador___API.Application.Services
         private readonly IConfiguration _configuration;
         private readonly ILogger<AuthService> _logger;
 
+        /// <summary>
+        /// Inicializa el servicio de autenticación con sus dependencias.
+        /// </summary>
         public AuthService(
             IUserRepository userRepository,
             IConfiguration configuration,
@@ -31,40 +33,40 @@ namespace Anonimizador___API.Application.Services
             _logger = logger;
         }
 
-        /// <summary>
-        /// Valida credenciales y retorna un JWT si son correctas.
-        /// </summary>
+        /// <inheritdoc />
         public async Task<LoginResponseDto> LoginAsync(LoginRequestDto request)
         {
             _logger.LogInformation(
-                "Login attempt for user: {Username}", request.Username);
+                "Intento de login para usuario: {Username}", request.Username);
 
-            // 1. Buscar usuario
+            // 1. Buscar usuario activo en BD
             var user = await _userRepository.GetByUsernameAsync(request.Username);
 
             if (user == null || !user.IsActive)
-                throw new UnauthorizedAccessException("Invalid credentials");
+                throw new UnauthorizedAccessException("Credenciales inválidas.");
 
-            // 2. Verificar password con BCrypt
-            var validPassword = BCrypt.Net.BCrypt.Verify(
+            // 2. Verificar contraseña con BCrypt
+            var passwordValid = BCrypt.Net.BCrypt.Verify(
                 request.Password,
                 user.PasswordHash);
 
-            if (!validPassword)
-                throw new UnauthorizedAccessException("Invalid credentials");
+            if (!passwordValid)
+                throw new UnauthorizedAccessException("Credenciales inválidas.");
 
             _logger.LogInformation(
-                "Login successful for user: {Username} | Role: {Role}",
+                "Login exitoso: {Username} | Rol: {Role}",
                 user.Username,
                 user.RoleName);
 
-            // 3. Generar JWT
+            // 3. Generar y retornar el token JWT
             return GenerateToken(user);
         }
 
         /// <summary>
-        /// Genera el JWT con los claims del usuario.
+        /// Genera un token JWT firmado con los claims del usuario autenticado.
         /// </summary>
+        /// <param name="user">Datos del usuario autenticado.</param>
+        /// <returns>Respuesta con el token JWT y sus metadatos.</returns>
         private LoginResponseDto GenerateToken(UserDto user)
         {
             var key = _configuration["Jwt:Key"]!;
@@ -72,7 +74,9 @@ namespace Anonimizador___API.Application.Services
             var audience = _configuration["Jwt:Audience"]!;
             var hours = int.Parse(_configuration["Jwt:ExpirationHours"]!);
 
-            var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key));
+            var securityKey = new SymmetricSecurityKey(
+                Encoding.UTF8.GetBytes(key));
+
             var credentials = new SigningCredentials(
                 securityKey,
                 SecurityAlgorithms.HmacSha256);
@@ -81,10 +85,11 @@ namespace Anonimizador___API.Application.Services
 
             var claims = new[]
             {
-                new Claim(JwtRegisteredClaimNames.Sub, user.UserId.ToString()),
+                new Claim(JwtRegisteredClaimNames.Sub,        user.UserId.ToString()),
                 new Claim(JwtRegisteredClaimNames.UniqueName, user.Username),
-                new Claim(ClaimTypes.Role, user.RoleName),
-                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+                new Claim(ClaimTypes.Role,                    user.RoleName),
+                new Claim(ClaimTypes.GivenName,               user.FullName ?? string.Empty),
+                new Claim(JwtRegisteredClaimNames.Jti,        Guid.NewGuid().ToString())
             };
 
             var token = new JwtSecurityToken(
@@ -98,6 +103,7 @@ namespace Anonimizador___API.Application.Services
             {
                 Token = new JwtSecurityTokenHandler().WriteToken(token),
                 Username = user.Username,
+                FullName = user.FullName ?? string.Empty,
                 Role = user.RoleName,
                 ExpiresAt = expiresAt
             };

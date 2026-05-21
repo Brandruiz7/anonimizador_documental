@@ -1,10 +1,14 @@
-﻿using Microsoft.AspNetCore.Authorization;
+﻿using Anonimizador___Web.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Text.Json;
-using Anonimizador___Web.Models;
 
 namespace Anonimizador___Web.Controllers
 {
+    /// <summary>
+    /// Controlador del dashboard.
+    /// Carga el historial de documentos y métricas desde el API.
+    /// </summary>
     [Authorize]
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public class DashboardController : Controller
@@ -12,6 +16,9 @@ namespace Anonimizador___Web.Controllers
         private readonly IConfiguration _configuration;
         private readonly ILogger<DashboardController> _logger;
 
+        /// <summary>
+        /// Inicializa el controlador con sus dependencias.
+        /// </summary>
         public DashboardController(
             IConfiguration configuration,
             ILogger<DashboardController> logger)
@@ -20,6 +27,10 @@ namespace Anonimizador___Web.Controllers
             _logger = logger;
         }
 
+        /// <summary>
+        /// Carga el historial de documentos y métricas en paralelo
+        /// y los pasa a la vista del dashboard.
+        /// </summary>
         public async Task<IActionResult> Index()
         {
             try
@@ -37,49 +48,42 @@ namespace Anonimizador___Web.Controllers
                 client.DefaultRequestHeaders.Authorization =
                     new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
 
-                // Llamadas en paralelo
+                // Llamadas en paralelo para reducir tiempo de carga
                 var documentsTask = client.GetAsync($"{apiUrl}/api/documents");
                 var metricsTask = client.GetAsync($"{apiUrl}/api/documents/metrics");
 
                 await Task.WhenAll(documentsTask, metricsTask);
-
-                var documentsResponse = await documentsTask;
-                var metricsResponse = await metricsTask;
 
                 var options = new JsonSerializerOptions
                 {
                     PropertyNameCaseInsensitive = true
                 };
 
-                // Documentos
                 var documents = new List<DocumentSummaryViewModel>();
-                if (documentsResponse.IsSuccessStatusCode)
+                if ((await documentsTask).IsSuccessStatusCode)
                 {
-                    var json = await documentsResponse.Content.ReadAsStringAsync();
+                    var json = await (await documentsTask).Content.ReadAsStringAsync();
                     documents = JsonSerializer.Deserialize<List<DocumentSummaryViewModel>>(
                         json, options) ?? new();
                 }
 
-                // Métricas
                 var metrics = new MetricsViewModel();
-                if (metricsResponse.IsSuccessStatusCode)
+                if ((await metricsTask).IsSuccessStatusCode)
                 {
-                    var json = await metricsResponse.Content.ReadAsStringAsync();
+                    var json = await (await metricsTask).Content.ReadAsStringAsync();
                     metrics = JsonSerializer.Deserialize<MetricsViewModel>(
                         json, options) ?? new();
                 }
 
-                var viewModel = new DashboardViewModel
+                return View(new DashboardViewModel
                 {
                     Documents = documents,
                     Metrics = metrics
-                };
-
-                return View(viewModel);
+                });
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error loading dashboard");
+                _logger.LogError(ex, "Error al cargar el dashboard");
                 ViewBag.Error = "Error de conexión con el servicio.";
                 return View(new DashboardViewModel());
             }

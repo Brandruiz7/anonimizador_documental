@@ -4,8 +4,9 @@ using System.Text.Json;
 namespace Anonimizador___API.CrossCutting
 {
     /// <summary>
-    /// Middleware que captura cualquier excepción no manejada en el pipeline
-    /// y devuelve una respuesta JSON estructurada en lugar de crashear.
+    /// Middleware que captura excepciones no manejadas en el pipeline
+    /// y retorna una respuesta JSON estructurada en lugar de un error genérico.
+    /// En desarrollo incluye el stack trace; en producción solo el mensaje.
     /// </summary>
     public class ExceptionMiddleware
     {
@@ -15,6 +16,9 @@ namespace Anonimizador___API.CrossCutting
         private readonly ILogger<ExceptionMiddleware> _logger;
         private readonly IHostEnvironment _env;
 
+        /// <summary>
+        /// Inicializa el middleware con sus dependencias.
+        /// </summary>
         public ExceptionMiddleware(
             RequestDelegate next,
             ILogger<ExceptionMiddleware> logger,
@@ -25,6 +29,9 @@ namespace Anonimizador___API.CrossCutting
             _env = env;
         }
 
+        /// <summary>
+        /// Procesa el request y captura cualquier excepción no manejada.
+        /// </summary>
         public async Task InvokeAsync(HttpContext context)
         {
             try
@@ -38,7 +45,7 @@ namespace Anonimizador___API.CrossCutting
 
                 _logger.LogError(
                     ex,
-                    "Unhandled exception | CorrelationId: {CorrelationId} | {Message}",
+                    "Excepción no manejada | CorrelationId: {CorrelationId} | {Message}",
                     correlationId,
                     ex.Message);
 
@@ -46,6 +53,9 @@ namespace Anonimizador___API.CrossCutting
             }
         }
 
+        /// <summary>
+        /// Construye y escribe la respuesta JSON de error según el tipo de excepción.
+        /// </summary>
         private async Task HandleExceptionAsync(
             HttpContext context,
             Exception ex,
@@ -53,7 +63,6 @@ namespace Anonimizador___API.CrossCutting
         {
             context.Response.ContentType = "application/json";
 
-            // Mapeamos tipos de excepción conocidos a sus códigos HTTP correspondientes
             context.Response.StatusCode = ex switch
             {
                 ArgumentException => (int)HttpStatusCode.BadRequest,
@@ -68,7 +77,6 @@ namespace Anonimizador___API.CrossCutting
                 correlationId = correlationId,
                 statusCode = context.Response.StatusCode,
                 message = ex.Message,
-                // En desarrollo mostramos el stack trace, en producción no
                 detail = _env.IsDevelopment() ? ex.StackTrace : null
             };
 

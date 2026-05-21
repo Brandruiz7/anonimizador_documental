@@ -1,4 +1,6 @@
-﻿using Anonimizador___API.Application.Services;
+﻿using Anonimizador___API.Application.Services.Analysis;
+using Anonimizador___API.Application.Services.Auth;
+using Anonimizador___API.Application.Services.Documents;
 using Anonimizador___API.Application.Services.Processors;
 using Anonimizador___API.CrossCutting;
 using Anonimizador___API.Infrastructure.Data;
@@ -15,12 +17,13 @@ using System.Text;
 var builder = WebApplication.CreateBuilder(args);
 
 // =============================================
-// SERVICES
+// SERVICIOS
 // =============================================
+
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 
-// Swagger con soporte para JWT
+// Swagger con soporte para autenticación JWT
 builder.Services.AddSwaggerGen(options =>
 {
     options.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.Models.OpenApiSecurityScheme
@@ -49,7 +52,7 @@ builder.Services.AddSwaggerGen(options =>
     });
 });
 
-// JWT
+// Autenticación con JWT
 var jwtKey = builder.Configuration["Jwt:Key"]!;
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -70,23 +73,26 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddAuthorization();
 
-// Application services
+// Servicios de aplicación
 builder.Services.AddScoped<IDocumentService, DocumentService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IDocumentAnalysisService, DocumentAnalysisService>();
 
-// Repositories
+// Procesadores de documentos
+builder.Services.AddScoped<IDocumentProcessor, WordDocumentProcessor>();
+builder.Services.AddScoped<IDocumentProcessor, PdfDocumentProcessor>();
+
+// IA — Singleton porque HttpClient interno se reutiliza entre requests
+builder.Services.AddSingleton<OllamaService>();
+
+// Repositorios
 builder.Services.AddScoped<IDocumentRepository, DocumentRepository>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<DbConnectionFactory>();
-builder.Services.AddScoped<IDocumentProcessor, WordDocumentProcessor>();
-builder.Services.AddScoped<IDocumentProcessor, PdfDocumentProcessor>();
-// AI Analysis
-builder.Services.AddSingleton<OllamaService>();
-builder.Services.AddScoped<IDocumentAnalysisService, DocumentAnalysisService>();
 builder.Services.AddScoped<IDbConnection>(sp =>
     new SqlConnection(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// Limits
+// Límites de tamaño para archivos (100 MB)
 builder.Services.Configure<FormOptions>(options =>
 {
     options.MultipartBodyLengthLimit = 104857600;
@@ -100,6 +106,7 @@ builder.WebHost.ConfigureKestrel(serverOptions =>
 // =============================================
 // PIPELINE
 // =============================================
+
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
@@ -108,13 +115,14 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-// Middleware propio — orden importa
+// Middlewares propios — el orden es importante
 app.UseMiddleware<CorrelationIdMiddleware>();
 app.UseMiddleware<ExceptionMiddleware>();
 
 app.UseHttpsRedirection();
 
-app.UseAuthentication(); // ← antes de Authorization
+// Authentication debe ir siempre antes de Authorization
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();

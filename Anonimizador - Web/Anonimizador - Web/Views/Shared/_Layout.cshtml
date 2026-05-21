@@ -28,11 +28,18 @@
                 Dashboard
             </a>
         </nav>
-        <!-- Logout al fondo del sidebar -->
-        <div style="margin-top: auto; width: 100%;">
+        <div class="sidebar-user">
+            <div class="sidebar-user-divider">
+                <p class="sidebar-user-label">Usuario</p>
+                <p class="sidebar-user-name">
+                    @User.FindFirst(System.Security.Claims.ClaimTypes.GivenName)?.Value
+                </p>
+                <p class="sidebar-user-role">
+                    @User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value
+                </p>
+            </div>
             <a href="@Url.Action("Logout", "Auth")"
-               style="display:block; text-align:center; color:rgba(255,255,255,0.6);
-              font-size:12px; padding:10px; text-decoration:none;">
+               class="sidebar-logout">
                 Cerrar sesión
             </a>
         </div>
@@ -51,22 +58,23 @@
 
     <script src="~/js/site.js" asp-append-version="true"></script>
     @await RenderSectionAsync("Scripts", required: false)
+
     <!-- AVISO DE EXPIRACIÓN DE SESIÓN -->
     <div id="sessionWarning" style="
-    display: none;
-    position: fixed;
-    inset: 0;
-    background: rgba(54,73,155,0.18);
-    z-index: 9999;
-    align-items: center;
-    justify-content: center;">
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(54,73,155,0.18);
+        z-index: 9999;
+        align-items: center;
+        justify-content: center;">
         <div style="
-        background: white;
-        border-radius: 8px;
-        padding: 32px 40px;
-        text-align: center;
-        box-shadow: 0 4px 24px rgba(0,0,0,0.12);
-        max-width: 380px;">
+            background: white;
+            border-radius: 8px;
+            padding: 32px 40px;
+            text-align: center;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.12);
+            max-width: 380px;">
             <p style="font-size:15px; font-weight:700; color:#36499b; margin-bottom:8px;">
                 ¿Desea continuar?
             </p>
@@ -74,64 +82,118 @@
                 Su sesión está a punto de expirar por inactividad.
             </p>
             <button onclick="renewSession()" style="
-            background: #61c0cd;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            padding: 10px 28px;
-            font-size: 13px;
-            font-weight: 600;
-            cursor: pointer;
-            margin-right: 8px;">
+                background: #61c0cd;
+                color: white;
+                border: none;
+                border-radius: 8px;
+                padding: 10px 28px;
+                font-size: 13px;
+                font-weight: 600;
+                cursor: pointer;
+                margin-right: 8px;">
                 Continuar sesión
             </button>
             <button onclick="window.location='/auth/logout'" style="
-            background: transparent;
-            color: #7a8099;
-            border: 1px solid #dce3f0;
-            border-radius: 8px;
-            padding: 10px 20px;
-            font-size: 13px;
-            cursor: pointer;">
+                background: transparent;
+                color: #7a8099;
+                border: 1px solid #dce3f0;
+                border-radius: 8px;
+                padding: 10px 20px;
+                font-size: 13px;
+                cursor: pointer;">
                 Cerrar sesión
             </button>
         </div>
     </div>
 
     <script>
-        // Muestra el aviso 5 minutos antes de expirar (a los 25 min)
-        const WARNING_MINUTES = 25;
-        const EXPIRE_MINUTES  = 30;
+        const WARNING_MS = 25 * 60 * 1000; // 25 minutos
+        const EXPIRE_MS  = 30 * 60 * 1000; // 30 minutos
+        const SESSION_KEY = 'session_start';
 
         let warningTimer;
         let expireTimer;
 
-        function startTimers() {
+        /**
+         * Inicia o retoma el timer de sesión.
+         * Usa sessionStorage para persistir el tiempo de inicio
+         * entre navegaciones sin resetear el countdown.
+         */
+        function initSessionTimer() {
+            const now        = Date.now();
+            const sessionStart = parseInt(sessionStorage.getItem(SESSION_KEY) || '0');
+
+            // Si no hay sesión guardada o es inválida, iniciar nueva
+            if (!sessionStart || sessionStart > now) {
+                sessionStorage.setItem(SESSION_KEY, now.toString());
+                scheduleTimers(WARNING_MS, EXPIRE_MS);
+                return;
+            }
+
+            // Calcular tiempo restante basado en cuándo inició la sesión
+            const elapsed    = now - sessionStart;
+            const warningLeft = WARNING_MS - elapsed;
+            const expireLeft  = EXPIRE_MS  - elapsed;
+
+            // Si ya expiró, cerrar sesión inmediatamente
+            if (expireLeft <= 0) {
+                window.location = '/auth/logout';
+                return;
+            }
+
+            // Si ya pasó el tiempo de aviso, mostrar aviso ahora
+            if (warningLeft <= 0) {
+                document.getElementById('sessionWarning').style.display = 'flex';
+                scheduleTimers(0, expireLeft);
+                return;
+            }
+
+            scheduleTimers(warningLeft, expireLeft);
+        }
+
+        /**
+         * Programa los timers de aviso y expiración.
+         * param {number} warningDelay - Milisegundos para mostrar el aviso
+         * param {number} expireDelay  - Milisegundos para cerrar la sesión
+         */
+        function scheduleTimers(warningDelay, expireDelay) {
             clearTimeout(warningTimer);
             clearTimeout(expireTimer);
 
-            // Aviso a los 25 minutos
-            warningTimer = setTimeout(() => {
-                document.getElementById('sessionWarning').style.display = 'flex';
-            }, WARNING_MINUTES * 60 * 1000);
+            if (warningDelay > 0) {
+                warningTimer = setTimeout(() => {
+                    document.getElementById('sessionWarning').style.display = 'flex';
+                }, warningDelay);
+            }
 
-            // Expiración forzada a los 30 minutos
             expireTimer = setTimeout(() => {
                 window.location = '/auth/logout';
-            }, EXPIRE_MINUTES * 60 * 1000);
+            }, expireDelay);
         }
 
+        /**
+         * Renueva la sesión del usuario haciendo un request al servidor
+         * y reiniciando el timer desde cero.
+         */
         function renewSession() {
             document.getElementById('sessionWarning').style.display = 'none';
 
-            // Hacemos un request al servidor para renovar la cookie
             fetch('/auth/renew', { method: 'POST' })
-                .then(() => startTimers())
+                .then(() => {
+                    sessionStorage.setItem(SESSION_KEY, Date.now().toString());
+                    scheduleTimers(WARNING_MS, EXPIRE_MS);
+                })
                 .catch(() => window.location = '/auth/logout');
         }
 
-        // Iniciar timers al cargar la página
-        startTimers();
+        // Limpiar sessionStorage al cerrar sesión explícitamente
+        document.querySelector('a[href*="logout"]')
+            ?.addEventListener('click', () => {
+                sessionStorage.removeItem(SESSION_KEY);
+            });
+
+        // Arrancar el timer al cargar la página
+        initSessionTimer();
     </script>
 </body>
 </html>

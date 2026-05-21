@@ -1,4 +1,4 @@
-﻿using Anonimizador___API.Application.DTOs;
+﻿using Anonimizador___API.Application.DTOs.Auth;
 using Anonimizador___API.Interfaces.Services;
 using Microsoft.AspNetCore.Mvc;
 
@@ -6,6 +6,7 @@ namespace Anonimizador___API.API.Controllers
 {
     /// <summary>
     /// Controlador de autenticación.
+    /// Expone el endpoint de login y generación de tokens JWT.
     /// </summary>
     [ApiController]
     [Route("api/auth")]
@@ -13,16 +14,21 @@ namespace Anonimizador___API.API.Controllers
     {
         private readonly IAuthService _authService;
 
+        /// <summary>
+        /// Inicializa el controlador con el servicio de autenticación.
+        /// </summary>
         public AuthController(IAuthService authService)
         {
             _authService = authService;
         }
 
         /// <summary>
-        /// Autentica un usuario y retorna un JWT.
+        /// Autentica un usuario y retorna un token JWT.
         /// </summary>
-        /// <response code="200">Login exitoso, retorna token</response>
-        /// <response code="401">Credenciales inválidas</response>
+        /// <param name="request">Credenciales de acceso (usuario y contraseña).</param>
+        /// <returns>Token JWT y datos del usuario autenticado.</returns>
+        /// <response code="200">Login exitoso.</response>
+        /// <response code="401">Credenciales inválidas.</response>
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginRequestDto request)
         {

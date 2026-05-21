@@ -3,10 +3,11 @@ using Microsoft.Extensions.Logging;
 using System.Text;
 using System.Text.Json;
 
-namespace Anonimizador___API.Application.Services
+namespace Anonimizador___API.Application.Services.Analysis
 {
     /// <summary>
-    /// Servicio para comunicarse con Ollama local.
+    /// Servicio de comunicación con Ollama local.
+    /// Envía prompts al modelo configurado y retorna la respuesta generada.
     /// </summary>
     public class OllamaService
     {
@@ -14,6 +15,9 @@ namespace Anonimizador___API.Application.Services
         private readonly string _model;
         private readonly ILogger<OllamaService> _logger;
 
+        /// <summary>
+        /// Inicializa el cliente HTTP apuntando al servidor Ollama configurado.
+        /// </summary>
         public OllamaService(
             IConfiguration configuration,
             ILogger<OllamaService> logger)
@@ -24,28 +28,30 @@ namespace Anonimizador___API.Application.Services
             var baseUrl = configuration["Ollama:BaseUrl"]
                 ?? "http://localhost:11434";
 
-            var timeout = int.Parse(
+            var timeoutSeconds = int.Parse(
                 configuration["Ollama:TimeoutSeconds"] ?? "120");
 
             _httpClient = new HttpClient
             {
                 BaseAddress = new Uri(baseUrl),
-                Timeout = TimeSpan.FromSeconds(timeout)
+                Timeout = TimeSpan.FromSeconds(timeoutSeconds)
             };
         }
 
         /// <summary>
-        /// Envía un prompt a Ollama y retorna la respuesta como string.
+        /// Envía un prompt al modelo Ollama y retorna la respuesta como texto plano.
         /// </summary>
+        /// <param name="prompt">Instrucción a enviar al modelo.</param>
+        /// <returns>Respuesta generada por el modelo.</returns>
         public async Task<string> GenerateAsync(string prompt)
         {
             _logger.LogInformation(
-                "Sending prompt to Ollama model: {Model}", _model);
+                "Enviando prompt a Ollama | Modelo: {Model}", _model);
 
             var requestBody = new
             {
                 model = _model,
-                prompt = prompt,
+                prompt,
                 stream = false
             };
 
@@ -58,12 +64,10 @@ namespace Anonimizador___API.Application.Services
             response.EnsureSuccessStatusCode();
 
             var responseJson = await response.Content.ReadAsStringAsync();
-
             var result = JsonSerializer.Deserialize<JsonElement>(responseJson);
 
-            return result
-                .GetProperty("response")
-                .GetString() ?? string.Empty;
+            return result.GetProperty("response").GetString()
+                ?? string.Empty;
         }
     }
 }

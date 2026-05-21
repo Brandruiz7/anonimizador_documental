@@ -3,12 +3,14 @@
 namespace Anonimizador___API.Application.Common
 {
     /// <summary>
-    /// Centralized regex catalog for anonymization rules.
+    /// Catálogo centralizado de expresiones regulares para detección de datos sensibles.
+    /// Compiladas en tiempo de inicio para mayor rendimiento.
     /// </summary>
     public static class RegexCatalog
     {
         /// <summary>
-        /// Full name detection pattern.
+        /// Detecta nombres completos con al menos dos palabras capitalizadas.
+        /// Soporta caracteres especiales del español (tildes, ñ).
         /// </summary>
         public static readonly Regex FullName =
             new(
@@ -16,7 +18,7 @@ namespace Anonimizador___API.Application.Common
                 RegexOptions.Compiled);
 
         /// <summary>
-        /// Costa Rica identification number pattern.
+        /// Detecta números de cédula costarricense en formato X-XXXX-XXXX.
         /// </summary>
         public static readonly Regex CostaRicaId =
             new(
@@ -24,7 +26,7 @@ namespace Anonimizador___API.Application.Common
                 RegexOptions.Compiled);
 
         /// <summary>
-        /// Email detection pattern.
+        /// Detecta correos electrónicos en formato estándar.
         /// </summary>
         public static readonly Regex Email =
             new(
@@ -32,7 +34,7 @@ namespace Anonimizador___API.Application.Common
                 RegexOptions.Compiled);
 
         /// <summary>
-        /// Costa Rica phone number pattern.
+        /// Detecta números de teléfono costarricenses en formato XXXX-XXXX.
         /// </summary>
         public static readonly Regex Phone =
             new(

@@ -1,23 +1,10 @@
-﻿namespace Anonimizador___Web.Models
+﻿namespace Anonimizador___API.Application.DTOs.Documents
 {
     /// <summary>
-    /// ViewModel principal del dashboard.
-    /// Agrupa el historial de documentos y las métricas del sistema.
-    /// </summary>
-    public class DashboardViewModel
-    {
-        /// <summary>Lista de documentos procesados para el historial.</summary>
-        public List<DocumentSummaryViewModel> Documents { get; set; } = new();
-
-        /// <summary>Métricas del sistema para los gráficos y tarjetas.</summary>
-        public MetricsViewModel Metrics { get; set; } = new();
-    }
-
-    /// <summary>
-    /// Resumen de un documento procesado para el historial del dashboard.
+    /// Resumen de un documento procesado para el dashboard.
     /// Solo contiene metadata — sin datos sensibles.
     /// </summary>
-    public class DocumentSummaryViewModel
+    public class DocumentSummaryDto
     {
         /// <summary>Identificador único del documento.</summary>
         public int DocumentId { get; set; }

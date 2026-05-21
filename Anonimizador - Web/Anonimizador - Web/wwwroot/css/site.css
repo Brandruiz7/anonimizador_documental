@@ -1099,3 +1099,111 @@ body {
     .btn-add-variation:hover {
         background: #f0f4ff;
     }
+
+/* =====================
+   LOGIN
+   ===================== */
+.login-card {
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    border: 1px solid var(--border-color);
+    box-shadow: var(--shadow);
+    padding: 48px 40px;
+    width: 100%;
+    max-width: 400px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 24px;
+}
+
+.login-logo {
+    width: 120px;
+    filter: invert(1) sepia(1) saturate(3) hue-rotate(190deg);
+}
+
+.login-title {
+    color: var(--primary-color);
+    font-size: 14px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    text-align: center;
+}
+
+.login-form {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.login-error {
+    background: #fdecea;
+    color: #c0392b;
+    border: 1px solid #f5c6c2;
+    border-radius: var(--radius);
+    padding: 10px 14px;
+    font-size: 13px;
+    width: 100%;
+    text-align: center;
+}
+
+/* Centrar el body solo en la página de login */
+body.login-page {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    background: var(--bg-main);
+}
+
+/* =====================
+   SIDEBAR — USUARIO
+   ===================== */
+.sidebar-user {
+    margin-top: auto;
+    width: 100%;
+    padding: 0 12px;
+}
+
+.sidebar-user-divider {
+    border-top: 1px solid rgba(255,255,255,0.15);
+    padding-top: 12px;
+    margin-bottom: 8px;
+}
+
+.sidebar-user-label {
+    font-size: 11px;
+    color: rgba(255,255,255,0.5);
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    margin-bottom: 2px;
+}
+
+.sidebar-user-name {
+    font-size: 12px;
+    color: rgba(255,255,255,0.9);
+    font-weight: 600;
+    margin-bottom: 2px;
+}
+
+.sidebar-user-role {
+    font-size: 11px;
+    color: rgba(255,255,255,0.5);
+}
+
+.sidebar-logout {
+    display: block;
+    text-align: center;
+    color: rgba(255,255,255,0.6);
+    font-size: 12px;
+    padding: 8px;
+    text-decoration: none;
+    border-radius: 6px;
+    transition: background 0.2s;
+}
+
+    .sidebar-logout:hover {
+        background: rgba(255,255,255,0.1);
+    }

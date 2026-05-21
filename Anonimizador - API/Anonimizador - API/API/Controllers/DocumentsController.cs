@@ -1,5 +1,5 @@
-﻿using Anonimizador___API.Application.DTOs;
-using Anonimizador___API.Application.Services;
+﻿using Anonimizador___API.Application.DTOs.Analysis;
+using Anonimizador___API.Application.DTOs.Documents;
 using Anonimizador___API.Interfaces.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -7,8 +7,8 @@ using Microsoft.AspNetCore.Mvc;
 namespace Anonimizador___API.API.Controllers
 {
     /// <summary>
-    /// Controlador encargado de gestionar las operaciones relacionadas con documentos.
-    /// Expone endpoints para la carga y procesamiento de archivos.
+    /// Controlador de documentos.
+    /// Expone endpoints para anonimización, historial, métricas y análisis con IA.
     /// </summary>
     [ApiController]
     [Route("api/documents")]
@@ -18,32 +18,26 @@ namespace Anonimizador___API.API.Controllers
         private readonly IDocumentService _service;
         private readonly IDocumentAnalysisService _analysisService;
 
-
         /// <summary>
-        /// Constructor del controlador de documentos.
+        /// Inicializa el controlador con sus dependencias.
         /// </summary>
-        /// <param name="service">
-        /// Servicio de aplicación encargado de la lógica de negocio
-        /// para el procesamiento de documentos.
-        /// </param>
-        public DocumentsController(IDocumentService service, IDocumentAnalysisService analysisService)
+        public DocumentsController(
+            IDocumentService service,
+            IDocumentAnalysisService analysisService)
         {
             _service = service;
             _analysisService = analysisService;
         }
 
         /// <summary>
-        /// Uploads and anonymizes a document.
+        /// Recibe un documento, lo anonimiza y retorna el archivo procesado.
         /// </summary>
-        /// <param name="request">
-        /// Archivo y datos asociados enviados como multipart/form-data.
-        /// </param>
-        /// <returns>
-        /// Resultado del proceso con el identificador del documento.
-        /// </returns>
-        /// <response code="200">Documento procesado correctamente</response>
-        /// <response code="400">Solicitud inválida</response>
-        /// <response code="500">Error interno del servidor</response>
+        /// <param name="request">Archivo y personas a anonimizar en formato multipart/form-data.</param>
+        /// <returns>Archivo anonimizado listo para descargar.</returns>
+        /// <response code="200">Documento anonimizado correctamente.</response>
+        /// <response code="400">Solicitud inválida.</response>
+        /// <response code="401">No autorizado.</response>
+        /// <response code="500">Error interno del servidor.</response>
         [HttpPost("upload")]
         [Authorize(Roles = "Admin,Operator")]
         [RequestSizeLimit(104857600)]
@@ -59,8 +53,9 @@ namespace Anonimizador___API.API.Controllers
         /// <summary>
         /// Retorna el historial de documentos procesados para el dashboard.
         /// </summary>
-        /// <response code="200">Lista de documentos</response>
-        /// <response code="401">No autorizado</response>
+        /// <returns>Lista de documentos con metadata básica.</returns>
+        /// <response code="200">Historial retornado correctamente.</response>
+        /// <response code="401">No autorizado.</response>
         [HttpGet]
         [Authorize(Roles = "Admin,Operator")]
         public async Task<IActionResult> GetAll()
@@ -70,10 +65,11 @@ namespace Anonimizador___API.API.Controllers
         }
 
         /// <summary>
-        /// Retorna las métricas para el dashboard.
+        /// Retorna las métricas del sistema para el dashboard.
         /// </summary>
-        /// <response code="200">Métricas del sistema</response>
-        /// <response code="401">No autorizado</response>
+        /// <returns>Resumen, datos por mes, estado y usuario.</returns>
+        /// <response code="200">Métricas retornadas correctamente.</response>
+        /// <response code="401">No autorizado.</response>
         [HttpGet("metrics")]
         [Authorize(Roles = "Admin,Operator")]
         public async Task<IActionResult> GetMetrics()
@@ -83,18 +79,19 @@ namespace Anonimizador___API.API.Controllers
         }
 
         /// <summary>
-        /// Analyzes a document using hybrid AI + Regex detection.
-        /// Returns detected sensitive data for user review.
+        /// Analiza un documento con detección híbrida (Regex + IA) y retorna
+        /// los datos sensibles detectados para revisión del usuario.
         /// </summary>
-        /// <response code="200">Analysis result with detected persons</response>
-        /// <response code="400">Invalid file</response>
-        /// <response code="401">Unauthorized</response>
+        /// <param name="request">Archivo y contexto adicional opcional.</param>
+        /// <returns>Personas detectadas, vista previa y datos adicionales.</returns>
+        /// <response code="200">Análisis completado correctamente.</response>
+        /// <response code="400">Archivo inválido.</response>
+        /// <response code="401">No autorizado.</response>
         [HttpPost("analyze")]
         [Authorize(Roles = "Admin,Operator")]
         [RequestSizeLimit(104857600)]
         [RequestFormLimits(MultipartBodyLengthLimit = 104857600)]
-        public async Task<IActionResult> Analyze(
-            [FromForm] DocumentAnalysisRequestDto request)
+        public async Task<IActionResult> Analyze([FromForm] DocumentAnalysisRequestDto request)
         {
             var result = await _analysisService.AnalyzeAsync(
                 request.File,
