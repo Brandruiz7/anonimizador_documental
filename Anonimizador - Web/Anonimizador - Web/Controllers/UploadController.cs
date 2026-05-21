@@ -102,7 +102,37 @@ namespace Anonimizador___Web.Controllers
                         new StringContent(form[$"{prefix}.Address"].ToString() ?? ""),
                         $"Persons[{personIndex}].Address");
 
+                    // ← AGREGAR VARIACIONES
+                    var variationIndex = 0;
+                    while (form.ContainsKey(
+                        $"Persons[{personIndex}].NameVariations[{variationIndex}]"))
+                    {
+                        var variation = form[
+                            $"Persons[{personIndex}].NameVariations[{variationIndex}]"]
+                            .ToString();
+
+                        if (!string.IsNullOrWhiteSpace(variation))
+                        {
+                            content.Add(
+                                new StringContent(variation),
+                                $"Persons[{personIndex}].NameVariations[{variationIndex}]");
+                        }
+
+                        variationIndex++;
+                    }
+
                     personIndex++;
+                }
+
+                // Después del while de personas
+                _logger.LogWarning("Persons sent: {Count}", personIndex);
+
+                // Verificar variaciones en el form
+                foreach (var key in form.Keys)
+                {
+                    if (key.Contains("NameVariations"))
+                        _logger.LogWarning("Form key: {Key} = {Value}",
+                            key, form[key].ToString());
                 }
 
                 if (personIndex == 0)

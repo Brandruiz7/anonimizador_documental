@@ -6,70 +6,334 @@
 
 <div id="alertContainer"></div>
 
-<!-- REGIÓN 1: EXPLICACIÓN -->
-<div class="form-card info-card">
-    <p class="form-card-title">¿Cómo funciona?</p>
-    <p class="info-text">
-        Esta herramienta permite anonimizar documentos Word y PDF
-        (<strong>.docx, .pdf</strong>)
-        reemplazando datos sensibles por etiquetas neutrales.
-        Puede anonimizar información de una o más personas en el mismo documento.
-    </p>
-    <ul class="info-list">
-        <li>📄 Cargue un documento Word o PDF</li>
-        <li>👤 Agregue los datos de cada persona a anonimizar</li>
-        <li>✅ Solo llene los campos que necesita reemplazar</li>
-        <li>⬇️ El sistema generará y descargará automáticamente el documento anonimizado</li>
-    </ul>
+<!-- INDICADOR DE PASOS -->
+<div class="wizard-steps">
+    <div class="wizard-step active" id="step-indicator-1">
+        <div class="wizard-step-circle">1</div>
+        <span class="wizard-step-label">Documento</span>
+    </div>
+    <div class="wizard-connector" id="connector-1"></div>
+    <div class="wizard-step" id="step-indicator-2">
+        <div class="wizard-step-circle">2</div>
+        <span class="wizard-step-label">Datos</span>
+    </div>
+    <div class="wizard-connector" id="connector-2"></div>
+    <div class="wizard-step" id="step-indicator-3">
+        <div class="wizard-step-circle">3</div>
+        <span class="wizard-step-label">Resultado</span>
+    </div>
 </div>
 
-<form id="anonymizeForm">
-
-    <!-- REGIÓN 2: CARGA DOCUMENTAL -->
-    <div class="form-card">
-        <p class="form-card-title">Documento a anonimizar</p>
-        <div class="form-grid">
-            <div class="form-group">
-                <label for="File">Archivo (.docx, .pdf)</label>
-                <input type="file" id="File" name="documento" accept=".docx,.pdf" required />
-            </div>
-        </div>
+<!-- ETAPA 1: CARGAR DOCUMENTO -->
+<div class="wizard-panel active" id="panel-1">
+    <div class="form-card info-card">
+        <p class="form-card-title">¿Cómo funciona?</p>
+        <p class="info-text">
+            Anonimiza documentos Word (<strong>.docx</strong>) y PDF (<strong>.pdf</strong>)
+            reemplazando datos sensibles por etiquetas neutrales.
+        </p>
+        <ul class="info-list">
+            <li>📄 Cargue el documento a anonimizar</li>
+            <li>🤖 Elija detección automática con IA o ingrese los datos manualmente</li>
+            <li>✅ Revise y confirme los datos a anonimizar</li>
+            <li>⬇️ Descargue el documento anonimizado</li>
+        </ul>
     </div>
 
-    <!-- REGIÓN 3: PARTES A ANONIMIZAR -->
     <div class="form-card">
-        <p class="form-card-title">Partes a anonimizar</p>
-
-        <div id="personsContainer">
-            <!-- Persona 1 se genera automáticamente via JS -->
+        <p class="form-card-title">Seleccione el documento</p>
+        <div class="form-group">
+            <label for="File">Archivo (.docx, .pdf)</label>
+            <input type="file" id="File" name="documento"
+                   accept=".docx,.pdf" required />
         </div>
 
-        <div style="margin-top: 16px;">
-            <button type="button" id="btnAddPerson" class="btn-secondary">
-                + Anonimizar otra persona en este documento
+        <p class="form-card-title" style="margin-top: 24px;">
+            ¿Cómo desea identificar los datos sensibles?
+        </p>
+
+        <div class="mode-toggle">
+            <button type="button" class="mode-btn selected"
+                    id="btn-mode-manual" onclick="selectMode('manual')">
+                <span class="mode-btn-icon">✍️</span>
+                <span class="mode-btn-title">Manual</span>
+                <span class="mode-btn-desc">
+                    Ingreso los datos que quiero anonimizar
+                </span>
+            </button>
+            <button type="button" class="mode-btn"
+                    id="btn-mode-ai" onclick="selectMode('ai')">
+                <span class="mode-btn-icon">🤖</span>
+                <span class="mode-btn-title">Detección con IA</span>
+                <span class="mode-btn-desc">
+                    La IA detecta automáticamente los datos sensibles
+                </span>
             </button>
         </div>
     </div>
 
-    <!-- ACCIONES -->
-    <div class="form-actions">
-        <button type="button" id="btnAnonymize" class="btn-primary">
-            Anonimizar Documento
+    <div class="wizard-nav">
+        <div></div>
+        <button type="button" class="btn-next" onclick="goToStep2()">
+            Siguiente →
         </button>
     </div>
+</div>
 
-</form>
+<!-- ETAPA 2A: MANUAL -->
+<div class="wizard-panel" id="panel-2-manual">
+    <div class="form-card">
+        <p class="form-card-title">Partes a anonimizar</p>
+        <div id="personsContainer"></div>
+        <div style="margin-top: 16px;">
+            <button type="button" id="btnAddPerson"
+                    class="btn-secondary">
+                + Anonimizar otra persona
+            </button>
+        </div>
+    </div>
+
+    <div class="wizard-nav">
+        <button type="button" class="btn-back" onclick="goToStep1()">
+            ← Atrás
+        </button>
+        <button type="button" class="btn-next" onclick="processManual()">
+            Anonimizar documento
+        </button>
+    </div>
+</div>
+
+<!-- ETAPA 2B: IA -->
+<div class="wizard-panel" id="panel-2-ai">
+    <div class="form-card">
+        <p class="form-card-title">Detección automática con IA</p>
+
+        <!-- Estado: analizando -->
+        <div id="ai-analyzing" class="ai-analyzing" style="display:none;">
+            <div class="ai-spinner"></div>
+            <p class="ai-status-text">Analizando documento...</p>
+            <p style="font-size:12px; color:var(--text-muted); margin-top:8px;">
+                Esto puede tomar unos segundos
+            </p>
+        </div>
+
+        <!-- Resultados detectados -->
+        <div id="ai-results" style="display:none;">
+            <p style="font-size:13px; color:var(--text-muted); margin-bottom:12px;">
+                La IA detectó los siguientes datos sensibles:
+            </p>
+            <div class="detected-list" id="detectedList"></div>
+
+            <!-- Vista previa -->
+            <p class="form-card-title" style="margin-top:20px;">
+                Vista previa del texto extraído
+            </p>
+            <div class="preview-box" id="previewBox"></div>
+
+            <!-- Contexto adicional -->
+            <p class="form-card-title" style="margin-top:20px;">
+                ¿Algo más que anonimizar?
+            </p>
+            <textarea class="context-textarea" id="additionalContext"
+                      placeholder="Ej: también anonimiza las cuentas bancarias y las fechas del expediente..."></textarea>
+
+            <div style="margin-top:12px; display:flex; gap:10px;">
+                <button type="button" class="btn-secondary"
+                        onclick="reAnalyze()">
+                    🔄 Reanalizar con contexto
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="wizard-nav">
+        <button type="button" class="btn-back" onclick="goToStep1()">
+            ← Atrás
+        </button>
+        <button type="button" class="btn-next"
+                id="btn-process-ai"
+                onclick="processAi()" style="display:none;">
+            Anonimizar documento
+        </button>
+    </div>
+</div>
+
+<!-- ETAPA 3: RESULTADO -->
+<div class="wizard-panel" id="panel-3">
+    <div class="form-card">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:20px;">
+            <p class="form-card-title" style="margin-bottom:0;">
+                ✅ Documento anonimizado
+            </p>
+            <div style="display:flex; gap:10px;">
+                <button type="button" class="btn-back"
+                        onclick="goBackFromResult()">
+                    ← Corregir
+                </button>
+                <button type="button" class="btn-download"
+                        onclick="downloadResult()">
+                    ⬇️ Descargar
+                </button>
+                <button type="button" class="btn-reset"
+                        onclick="resetWizard()">
+                    🔄 Procesar otro
+                </button>
+            </div>
+        </div>
+
+        <!-- Vista previa PDF -->
+        <div id="preview-pdf" style="display:none;">
+            <iframe id="pdfPreviewFrame"
+                    style="width:100%; height:70vh; border:1px solid var(--border-color);
+                           border-radius:var(--radius);">
+            </iframe>
+        </div>
+
+        <!-- Mensaje para DOCX -->
+        <div id="preview-docx" style="display:none;">
+            <div style="text-align:center; padding:48px 20px;
+                        background:var(--bg-main); border-radius:var(--radius);
+                        border:1px solid var(--border-color);">
+                <span style="font-size:48px;">📄</span>
+                <p style="font-size:14px; font-weight:600;
+                           color:var(--primary-color); margin-top:12px;">
+                    Vista previa no disponible para Word
+                </p>
+                <p style="font-size:13px; color:var(--text-muted); margin-top:6px;">
+                    Descargue el documento para revisarlo en Microsoft Word.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
 
 @section Scripts {
     <script>
-         let personCount = 0;
+        // =============================================
+        // ESTADO GLOBAL
+        // =============================================
+        let currentMode    = 'manual';
+        let currentStep    = 1;
+        let personCount    = 0;
+        let resultBlob     = null;
+        let resultFileName = '';
+        let aiDetectedData = null;
 
+        // =============================================
+        // WIZARD — NAVEGACIÓN
+        // =============================================
+        function selectMode(mode) {
+            currentMode = mode;
+            document.getElementById('btn-mode-manual')
+                .classList.toggle('selected', mode === 'manual');
+            document.getElementById('btn-mode-ai')
+                .classList.toggle('selected', mode === 'ai');
+        }
+
+        function showPanel(panelId) {
+            document.querySelectorAll('.wizard-panel')
+                .forEach(p => p.classList.remove('active'));
+            document.getElementById(panelId).classList.add('active');
+        }
+
+        function updateStepIndicator(step) {
+            for (let i = 1; i <= 3; i++) {
+                const indicator = document.getElementById(`step-indicator-${i}`);
+                indicator.classList.remove('active', 'completed');
+                if (i < step)  indicator.classList.add('completed');
+                if (i === step) indicator.classList.add('active');
+            }
+            for (let i = 1; i <= 2; i++) {
+                const connector = document.getElementById(`connector-${i}`);
+                connector.classList.toggle('completed', i < step);
+            }
+        }
+
+        function goToStep1() {
+            currentStep = 1;
+            updateStepIndicator(1);
+            showPanel('panel-1');
+        }
+
+        async function goToStep2() {
+            const fileInput = document.getElementById('File');
+
+            if (!fileInput.files || fileInput.files.length === 0) {
+                showAlert('Debe seleccionar un archivo .docx o .pdf.', 'error');
+                return;
+            }
+
+            const ext = fileInput.files[0].name.split('.').pop().toLowerCase();
+            if (!['docx', 'pdf'].includes(ext)) {
+                showAlert('Solo se permiten archivos .docx y .pdf.', 'error');
+                return;
+            }
+
+            currentStep = 2;
+            updateStepIndicator(2);
+
+            if (currentMode === 'manual') {
+                showPanel('panel-2-manual');
+                if (personCount === 0) addPerson();
+            } else {
+                showPanel('panel-2-ai');
+                await startAiAnalysis();
+            }
+        }
+
+        function goToStep3() {
+            currentStep = 3;
+            updateStepIndicator(3);
+            showPanel('panel-3');
+
+            // Mostrar vista previa según tipo de archivo
+            const fileInput = document.getElementById('File');
+            const ext = fileInput.files[0]?.name.split('.').pop().toLowerCase();
+
+            if (ext === 'pdf' && resultBlob) {
+                // Renderizar PDF en iframe
+                const url = window.URL.createObjectURL(resultBlob);
+                document.getElementById('pdfPreviewFrame').src = url;
+                document.getElementById('preview-pdf').style.display  = 'block';
+                document.getElementById('preview-docx').style.display = 'none';
+            } else {
+                // DOCX — mostrar mensaje
+                document.getElementById('preview-pdf').style.display  = 'none';
+                document.getElementById('preview-docx').style.display = 'block';
+            }
+        }
+
+        function goBackFromResult() {
+            // Regresar a la etapa 2 según el modo
+            currentStep = 2;
+            updateStepIndicator(2);
+
+            if (currentMode === 'manual') {
+                showPanel('panel-2-manual');
+            } else {
+                showPanel('panel-2-ai');
+            }
+
+            // Limpiar el iframe para liberar memoria
+            document.getElementById('pdfPreviewFrame').src = '';
+            resultBlob     = null;
+            resultFileName = '';
+        }
+
+        // =============================================
+        // FORMULARIO MANUAL — PERSONAS
+        // =============================================
         function createPersonCard(index) {
             return `
             <div class="person-card" id="person-${index}">
                 <div class="person-header">
                     <span class="person-title">Persona ${index + 1}</span>
-                    ${index > 0 ? `<button type="button" class="btn-remove" onclick="removePerson(${index})">✕ Eliminar</button>` : ''}
+                    ${index > 0
+                        ? `<button type="button" class="btn-remove"
+                                   onclick="removePerson(${index})">
+                               ✕ Eliminar
+                           </button>`
+                        : ''}
                 </div>
                 <div class="form-grid">
                     <div class="form-group">
@@ -113,76 +377,392 @@
         }
 
         function removePerson(index) {
-            const card = document.getElementById(`person-${index}`);
-            if (card) card.remove();
+            document.getElementById(`person-${index}`)?.remove();
             renumberPersons();
         }
 
         function renumberPersons() {
             const cards = document.querySelectorAll('.person-card');
-            cards.forEach((card, newIndex) => {
-                card.id = `person-${newIndex}`;
-                card.querySelector('.person-title').textContent = `Persona ${newIndex + 1}`;
-
-                const btnRemove = card.querySelector('.btn-remove');
-                if (btnRemove) {
-                    btnRemove.setAttribute('onclick', `removePerson(${newIndex})`);
-                } else if (newIndex > 0) {
-                    const header = card.querySelector('.person-header');
-                    header.insertAdjacentHTML('beforeend',
-                        `<button type="button" class="btn-remove" onclick="removePerson(${newIndex})">✕ Eliminar</button>`);
+            cards.forEach((card, i) => {
+                card.id = `person-${i}`;
+                card.querySelector('.person-title').textContent = `Persona ${i + 1}`;
+                const btn = card.querySelector('.btn-remove');
+                if (btn) btn.setAttribute('onclick', `removePerson(${i})`);
+                else if (i > 0) {
+                    card.querySelector('.person-header').insertAdjacentHTML(
+                        'beforeend',
+                        `<button type="button" class="btn-remove"
+                                 onclick="removePerson(${i})">✕ Eliminar</button>`);
                 }
-
                 card.querySelectorAll('input').forEach(input => {
-                    input.name = input.name.replace(/Persons\[\d+\]/, `Persons[${newIndex}]`);
+                    input.name = input.name.replace(
+                        /Persons\[\d+\]/, `Persons[${i}]`);
                 });
             });
-
             personCount = cards.length;
         }
 
-        document.getElementById('btnAddPerson').addEventListener('click', addPerson);
+        document.getElementById('btnAddPerson')
+            .addEventListener('click', addPerson);
 
-        document.getElementById('btnAnonymize').addEventListener('click', async function () {
+        // =============================================
+        // MODO MANUAL — PROCESAR
+        // =============================================
+        async function processManual() {
             const fileInput = document.getElementById('File');
+            const cards     = document.querySelectorAll('.person-card');
 
-            // Primero verificar que hay archivo
-            if (!fileInput.files || fileInput.files.length === 0) {
-                showAlert('Debe seleccionar un archivo .docx o .pdf.', 'error');
-                return;
-            }
-
-            // Luego verificar la extensión
-            const allowedExtensions = ['docx', 'pdf'];
-            const fileName  = fileInput.files[0].name;
-            const extension = fileName.split('.').pop().toLowerCase();
-
-            if (!allowedExtensions.includes(extension)) {
-                showAlert('Formato no permitido. Solo .docx y .pdf', 'error');
-                return;
-            }
-
-            const cards = document.querySelectorAll('.person-card');
             if (cards.length === 0) {
-                showAlert('Debe agregar al menos una persona a anonimizar.', 'error');
+                showAlert('Agregue al menos una persona.', 'error');
                 return;
             }
 
             const formData = new FormData();
             formData.append('documento', fileInput.files[0]);
 
-            cards.forEach((card) => {
+            cards.forEach(card => {
                 card.querySelectorAll('input').forEach(input => {
                     formData.append(input.name, input.value);
                 });
             });
 
+            await submitAndDownload(formData, fileInput.files[0].name);
+        }
+
+        // =============================================
+        // MODO IA — ANÁLISIS
+        // =============================================
+        async function startAiAnalysis(additionalContext = '') {
+            document.getElementById('ai-analyzing').style.display = 'block';
+            document.getElementById('ai-results').style.display   = 'none';
+            document.getElementById('btn-process-ai').style.display = 'none';
+
+            try {
+                const fileInput = document.getElementById('File');
+                const formData  = new FormData();
+                formData.append('File', fileInput.files[0]);
+
+                if (additionalContext)
+                    formData.append('AdditionalContext', additionalContext);
+
+                const response = await fetch('/ai/analyze', {
+                    method: 'POST',
+                    body:   formData
+                });
+
+                if (!response.ok) {
+                    const err = await response.text();
+                    showAlert('Error en análisis IA: ' + err, 'error');
+                    return;
+                }
+
+                aiDetectedData = await response.json();
+                renderAiResults(aiDetectedData);
+
+            } catch (err) {
+                showAlert('Error de conexión con la IA: ' + err.message, 'error');
+            } finally {
+                document.getElementById('ai-analyzing').style.display = 'none';
+            }
+        }
+
+        function renderAiResults(data) {
+            const list = document.getElementById('detectedList');
+            list.innerHTML = '';
+
+            if (data.detectedPersons.length === 0 &&
+                data.additionalData.length === 0) {
+                list.innerHTML = `
+                    <p style="color:var(--text-muted); font-size:13px;">
+                        No se detectaron datos sensibles automáticamente.
+                        Agregue contexto adicional y reanalize.
+                    </p>`;
+            }
+
+            // Renderizar personas agrupadas
+            data.detectedPersons.forEach((person, i) => {
+                const fields = [
+                    { key: 'fullName',       label: 'Nombre',    value: person.fullName },
+                    { key: 'identification', label: 'Cédula',    value: person.identification },
+                    { key: 'email',          label: 'Correo',    value: person.email },
+                    { key: 'phoneNumber',    label: 'Teléfono',  value: person.phoneNumber },
+                    { key: 'position',       label: 'Cargo',     value: person.position },
+                    { key: 'address',        label: 'Dirección', value: person.address }
+                ].filter(f => f.value);
+
+                if (fields.length === 0) return;
+
+                // Card contenedora por persona
+                let fieldsHtml = fields.map(f => {
+                    const itemId = `detected-${i}-${f.key}`;
+                    return `
+                        <div class="detected-item" id="${itemId}">
+                            <span class="detected-item-type">${f.label}</span>
+                            <input type="text"
+                                   class="detected-item-input"
+                                   data-person="${i}"
+                                   data-field="${f.key}"
+                                   value="${f.value}" />
+                            <button type="button"
+                                    class="btn-remove-detected"
+                                    onclick="removeDetectedItem('${itemId}', ${i}, '${f.key}')"
+                                    title="Eliminar">✕</button>
+                        </div>`;
+                }).join('');
+
+                // Variaciones detectadas por IA
+                let variationsHtml = '';
+                if (person.nameVariations && person.nameVariations.length > 0) {
+                    variationsHtml = person.nameVariations.map((variation, vi) => {
+                        const varId = `variation-${i}-ai-${vi}`;
+                        return `
+                            <div class="detected-item" id="${varId}">
+                                <span class="detected-item-type"
+                                      style="color:var(--accent-teal);">
+                                    Variación IA
+                                </span>
+                                <input type="text"
+                                       class="detected-item-input variation-input"
+                                       data-person="${i}"
+                                       data-field="fullName"
+                                       data-variation="true"
+                                       value="${variation}" />
+                                <button type="button"
+                                        class="btn-remove-detected"
+                                        onclick="removeDetectedItem('${varId}')"
+                                        title="Eliminar">✕</button>
+                            </div>`;
+                    }).join('');
+                }
+
+                list.insertAdjacentHTML('beforeend', `
+                    <div class="person-card" style="margin-bottom:16px;">
+                        <div class="person-header">
+                            <span class="person-title">Persona ${i + 1}</span>
+                            <button type="button" class="btn-remove"
+                                    onclick="removeAiPerson(${i})">
+                                ✕ Eliminar persona
+                            </button>
+                        </div>
+                        <div class="detected-list" id="person-fields-${i}">
+                            ${fieldsHtml}
+                            ${variationsHtml}
+                        </div>
+                        <div class="variations-container" id="variations-${i}"
+                             style="margin-top:10px;">
+                            <button type="button"
+                                    class="btn-add-variation"
+                                    onclick="addVariation(${i})">
+                                + Agregar variación del nombre
+                            </button>
+                            <span style="font-size:11px; color:var(--text-muted);
+                                         margin-left:10px;">
+                                Escribe solo el dato a reemplazar, no el contexto
+                            </span>
+                        </div>
+                    </div>`);
+            });
+
+            // Datos adicionales
+            if (data.additionalData.length > 0) {
+                let extrasHtml = data.additionalData.map((d, i) => {
+                    const itemId = `detected-extra-${i}`;
+                    return `
+                        <div class="detected-item" id="${itemId}">
+                            <span class="detected-item-type">${d.type}</span>
+                            <input type="text"
+                                   class="detected-item-input"
+                                   data-extra="${i}"
+                                   value="${d.value}" />
+                            <button type="button"
+                                    class="btn-remove-detected"
+                                    onclick="removeDetectedItem('${itemId}')"
+                                    title="Eliminar">✕</button>
+                        </div>`;
+                }).join('');
+
+                list.insertAdjacentHTML('beforeend', `
+                    <div class="person-card" style="margin-bottom:16px;
+                         border-left: 3px solid var(--accent-orange);">
+                        <div class="person-header">
+                            <span class="person-title"
+                                  style="color:var(--accent-orange);">
+                                Datos adicionales
+                            </span>
+                        </div>
+                        <div>${extrasHtml}</div>
+                    </div>`);
+            }
+
+            // Vista previa con resaltado
+            const preview   = document.getElementById('previewBox');
+            let previewText = data.previewText || '';
+
+            data.detectedPersons.forEach(person => {
+                const valuesToHighlight = [
+                    person.fullName,
+                    person.identification,
+                    person.email,
+                    person.phoneNumber,
+                    person.position,
+                    person.address,
+                    ...(person.nameVariations || [])
+                ].filter(v => v && typeof v === 'string');
+
+                valuesToHighlight.forEach(val => {
+                    const escaped = val.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                    previewText = previewText.replace(
+                        new RegExp(escaped, 'gi'),
+                        `<span class="preview-highlight">${val}</span>`);
+                });
+            });
+
+            preview.innerHTML = previewText;
+
+            document.getElementById('ai-results').style.display    = 'block';
+            document.getElementById('btn-process-ai').style.display = 'block';
+        }
+
+        // Elimina una persona completa de la lista de IA
+        function removeAiPerson(personIndex) {
+            const card = document.querySelector(
+                `#detectedList .person-card:nth-child(${personIndex + 1})`);
+            if (card) card.remove();
+
+            // Eliminar del estado
+            if (aiDetectedData && aiDetectedData.detectedPersons[personIndex]) {
+                aiDetectedData.detectedPersons.splice(personIndex, 1);
+            }
+
+            // Renumerar títulos
+            document.querySelectorAll('#detectedList .person-title').forEach(
+                (title, i) => {
+                    if (!title.style.color) // Solo las de personas, no "Datos adicionales"
+                        title.textContent = `Persona ${i + 1}`;
+                });
+        }
+
+        // Agrega una variación del nombre para una persona
+        function addVariation(personIndex) {
+            const container = document.getElementById(`variations-${personIndex}`);
+            const varId     = `variation-${personIndex}-${Date.now()}`;
+
+            container.insertAdjacentHTML('beforebegin', `
+                <div class="detected-item" id="${varId}">
+                    <span class="detected-item-type">
+                        Persona ${personIndex + 1} — Variación
+                    </span>
+                    <input type="text"
+                           class="detected-item-input variation-input"
+                           data-person="${personIndex}"
+                           data-field="fullName"
+                           data-variation="true"
+                           placeholder="Solo el dato a reemplazar. Ej: Brandon, señor Ruiz..." />
+                    <button type="button"
+                            class="btn-remove-detected"
+                            onclick="removeDetectedItem('${varId}')"
+                            title="Eliminar variación">✕</button>
+                </div>`);
+
+            document.getElementById(varId)
+                .querySelector('input')
+                .focus();
+        }
+
+        function removeDetectedItem(itemId, personIndex, fieldKey) {
+            // Eliminar visualmente
+            document.getElementById(itemId)?.remove();
+
+            // Eliminar del estado
+            if (aiDetectedData && personIndex !== undefined && fieldKey !== undefined) {
+                const person = aiDetectedData.detectedPersons[personIndex];
+                if (person) person[fieldKey] = null;
+            }
+        }
+
+        async function reAnalyze() {
+            const context = document.getElementById('additionalContext').value;
+            await startAiAnalysis(context);
+        }
+
+        // =============================================
+        // MODO IA — PROCESAR
+        // =============================================
+        async function processAi() {
+            const fileInput = document.getElementById('File');
+            const formData  = new FormData();
+            formData.append('documento', fileInput.files[0]);
+
+            const inputs    = document.querySelectorAll('.detected-item-input');
+            const personMap = {};
+
+            inputs.forEach(input => {
+                const personIdx   = input.dataset.person;
+                const fieldKey    = input.dataset.field;
+                const isVariation = input.dataset.variation === 'true';
+                const value       = input.value.trim();
+
+                if (personIdx === undefined || !fieldKey || !value) return;
+
+                if (!personMap[personIdx])
+                    personMap[personIdx] = { variations: [] };
+
+                if (isVariation) {
+                    personMap[personIdx].variations.push(value);
+                } else {
+                    personMap[personIdx][fieldKey] = value;
+                }
+            });
+
+            const personIndexes = Object.keys(personMap);
+
+            if (personIndexes.length === 0) {
+                showAlert('No hay datos para anonimizar.', 'error');
+                return;
+            }
+
+            // Enviar personas con sus variaciones incluidas
+            personIndexes.forEach((idx, formIdx) => {
+                const p = personMap[idx];
+
+                if (p.fullName)
+                    formData.append(`Persons[${formIdx}].FullName`,       p.fullName);
+                if (p.identification)
+                    formData.append(`Persons[${formIdx}].Identification`, p.identification);
+                if (p.email)
+                    formData.append(`Persons[${formIdx}].Email`,          p.email);
+                if (p.phoneNumber)
+                    formData.append(`Persons[${formIdx}].PhoneNumber`,    p.phoneNumber);
+                if (p.position)
+                    formData.append(`Persons[${formIdx}].Position`,       p.position);
+                if (p.address)
+                    formData.append(`Persons[${formIdx}].Address`,        p.address);
+
+                // Variaciones como parte de la misma persona — mismo índice
+                p.variations.forEach((variation, vi) => {
+                    formData.append(
+                        `Persons[${formIdx}].NameVariations[${vi}]`,
+                        variation);
+                });
+            });
+
+            for (let pair of formData.entries()) {
+                console.log(pair[0] + ': ' + pair[1]);
+            }
+
+            await submitAndDownload(formData, fileInput.files[0].name);
+        }
+
+        // =============================================
+        // SUBMIT COMÚN
+        // =============================================
+        async function submitAndDownload(formData, originalFileName) {
             document.getElementById('loadingOverlay').classList.add('active');
 
             try {
                 const response = await fetch('/upload/process', {
                     method: 'POST',
-                    body: formData
+                    body:   formData
                 });
 
                 if (!response.ok) {
@@ -191,31 +771,64 @@
                     return;
                 }
 
-                const blob = await response.blob();
-                const url  = window.URL.createObjectURL(blob);
-                const a    = document.createElement('a');
-                a.href     = url;
-                a.download = 'ANONYMIZED_' + fileInput.files[0].name;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                window.URL.revokeObjectURL(url);
+                resultBlob     = await response.blob();
+                resultFileName = 'ANONYMIZED_' + originalFileName;
 
-                showAlert('Documento anonimizado descargado correctamente.', 'success');
+                goToStep3();
 
             } catch (err) {
                 showAlert('Error de conexión: ' + err.message, 'error');
             } finally {
                 document.getElementById('loadingOverlay').classList.remove('active');
             }
-        });
-
-        function showAlert(message, type) {
-            const container = document.getElementById('alertContainer');
-            container.innerHTML = `<div class="alert alert-${type}">${message}</div>`;
-            container.scrollIntoView({ behavior: 'smooth' });
         }
 
-        addPerson();
+        // =============================================
+        // RESULTADO
+        // =============================================
+        function downloadResult() {
+            if (!resultBlob) return;
+            const url = window.URL.createObjectURL(resultBlob);
+            const a   = document.createElement('a');
+            a.href     = url;
+            a.download = resultFileName;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+        }
+
+        function resetWizard() {
+            currentMode    = 'manual';
+            currentStep    = 1;
+            personCount    = 0;
+            resultBlob     = null;
+            resultFileName = '';
+            aiDetectedData = null;
+
+            document.getElementById('File').value = '';
+            document.getElementById('personsContainer').innerHTML = '';
+            document.getElementById('detectedList').innerHTML     = '';
+            document.getElementById('previewBox').innerHTML       = '';
+            document.getElementById('additionalContext').value    = '';
+            document.getElementById('ai-results').style.display  = 'none';
+            document.getElementById('btn-process-ai').style.display = 'none';
+            document.getElementById('pdfPreviewFrame').src = '';
+            document.getElementById('preview-pdf').style.display  = 'none';
+            document.getElementById('preview-docx').style.display = 'none';
+
+            selectMode('manual');
+            goToStep1();
+        }
+
+        // =============================================
+        // UTILIDADES
+        // =============================================
+        function showAlert(message, type) {
+            const container = document.getElementById('alertContainer');
+            container.innerHTML =
+                `<div class="alert alert-${type}">${message}</div>`;
+            container.scrollIntoView({ behavior: 'smooth' });
+        }
     </script>
 }

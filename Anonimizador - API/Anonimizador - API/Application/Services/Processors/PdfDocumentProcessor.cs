@@ -2,10 +2,11 @@
 using Anonimizador___API.Application.DTOs;
 using Anonimizador___API.Interfaces.Services;
 using Microsoft.Extensions.Logging;
-using PDFtoImage;
 using PdfSharpCore.Drawing;
 using PdfSharpCore.Pdf;
+using PDFtoImage;
 using SkiaSharp;
+using System.Text;
 using PdfPigDocument = UglyToad.PdfPig.PdfDocument;
 
 namespace Anonimizador___API.Application.Services.Processors
@@ -255,77 +256,265 @@ namespace Anonimizador___API.Application.Services.Processors
         {
             var redactions = new List<PdfRedactionInfo>();
             var lines = ExtractLines(fileBytes);
+            var allWordsByPage = ExtractAllWordsByPage(fileBytes);
 
             for (int i = 0; i < targets.Count; i++)
             {
                 var target = targets[i];
-                var personLabel = $"Persona {i + 1}";
+                var personLabel = $"P{target.PersonIndex + 1}";
 
-                var fieldMappings = new[]
+                // Usamos una Lista en lugar de un Array para poder agregar dinámicamente las variaciones
+                var fieldMappings = new List<(string Value, string Replacement, string FieldType)>
                 {
-                    (target.FullName,       $"[{personLabel} - Nombre]",    $"{personLabel} - Nombre"),
-                    (target.Identification, $"[{personLabel} - Cédula]",    $"{personLabel} - Cédula"),
-                    (target.Email,          $"[{personLabel} - Correo]",    $"{personLabel} - Correo"),
-                    (target.PhoneNumber,    $"[{personLabel} - Teléfono]",  $"{personLabel} - Teléfono"),
-                    (target.Position,       $"[{personLabel} - Cargo]",     $"{personLabel} - Cargo"),
-                    (target.Address,        $"[{personLabel} - Dirección]", $"{personLabel} - Dirección")
+                    (target.FullName,       $"[{personLabel}-Nombre]",   $"{personLabel}-Nombre"),
+                    (target.Identification, $"[{personLabel}-Cédula]",   $"{personLabel}-Cédula"),
+                    (target.Email,          $"[{personLabel}-Correo]",   $"{personLabel}-Correo"),
+                    (target.PhoneNumber,    $"[{personLabel}-Tel]",      $"{personLabel}-Tel"),
+                    (target.Position,       $"[{personLabel}-Cargo]",    $"{personLabel}-Cargo"),
+                    (target.Address,        $"[{personLabel}-Dir]",      $"{personLabel}-Dir")
                 };
 
-                foreach (var (value, replacement, fieldType)
-                    in fieldMappings)
+                foreach (var (value, replacement, fieldType) in fieldMappings)
                 {
-                    if (string.IsNullOrWhiteSpace(value))
-                        continue;
+                    if (string.IsNullOrWhiteSpace(value)) continue;
 
+                    bool isAddress = fieldType.Contains("Dir");
+                    bool isName = fieldType.Contains("Nombre");
+
+                    // 1. Buscar primero en líneas agrupadas (frase exacta)
                     foreach (var line in lines)
                     {
-                        if (!line.Text.Contains(
-                            value,
-                            StringComparison.OrdinalIgnoreCase))
-                            continue;
+                        if (!line.Text.Contains(value, StringComparison.OrdinalIgnoreCase)) continue;
 
-                        var matchedWords =
-                            FindWordsForPhrase(line.Words, value);
-
-                        if (matchedWords.Count == 0)
-                            continue;
-
-                        var x = matchedWords.Min(w => w.X);
-                        var y = matchedWords.Min(w => w.Y);
-                        var right = matchedWords.Max(w => w.X + w.Width);
-                        var top = matchedWords.Max(w => w.Y + w.Height);
-
-                        redactions.Add(new PdfRedactionInfo
+                        var matchedWords = FindWordsForPhrase(line.Words, value);
+                        if (matchedWords.Count > 0)
                         {
-                            PageNumber = line.PageNumber,
-                            OriginalText = value,
-                            ReplacementText = replacement,
-                            X = x,
-                            Y = y,
-                            Width = right - x,
-                            Height = top - y
-                        });
+                            AddRedaction(redactions, auditFields, matchedWords, line.PageNumber, value, replacement, fieldType);
+                        }
+                    }
 
-                        var alreadyAudited = auditFields.Any(a =>
-                            a.FieldType == fieldType &&
-                            a.OriginalValue.Equals(
-                                value,
-                                StringComparison.OrdinalIgnoreCase));
+                    var alreadyFound = redactions.Any(r => r.OriginalText.Equals(value, StringComparison.OrdinalIgnoreCase));
 
-                        if (!alreadyAudited)
+                    // 2. Si no encontró en líneas, buscar en todas las palabras 
+                    // Esto captura Cédulas divididas y Direcciones multilínea
+                    if (!alreadyFound)
+                    {
+                        foreach (var (pageNum, pageWords) in allWordsByPage)
                         {
-                            auditFields.Add(new AuditFieldDto
+                            var matchedWords = FindWordsForPhrase(pageWords, value);
+                            if (matchedWords.Count > 0)
                             {
-                                FieldType = fieldType,
-                                OriginalValue = value,
-                                AnonymizedValue = replacement
-                            });
+                                AddRedaction(redactions, auditFields, matchedWords, pageNum, value, replacement, fieldType);
+                            }
+                        }
+                    }
+
+                    // ¡CORRECCIÓN! Detenemos las direcciones aquí para que pasen por el paso 2, pero no por el paso 3.
+                    if (isAddress) continue;
+
+                    // 3. Búsqueda por palabra individual — SOLO para nombres que no se encontraron completos
+                    alreadyFound = redactions.Any(r => r.OriginalText.Equals(value, StringComparison.OrdinalIgnoreCase));
+
+                    if (!alreadyFound && isName && value.Contains(' '))
+                    {
+                        var nameWords = value.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
+                        foreach (var (pageNum, pageWords) in allWordsByPage)
+                        {
+                            foreach (var nameWord in nameWords)
+                            {
+                                if (nameWord.Length <= 3) continue;
+
+                                // ¡CORRECCIÓN! Limpiamos comas o puntos pegados al nombre
+                                var wordMatch = pageWords.FirstOrDefault(w =>
+                                    w.Text.TrimEnd(',', '.', ';', ':').Equals(nameWord, StringComparison.OrdinalIgnoreCase));
+
+                                if (wordMatch == null) continue;
+
+                                var alreadyRedacted = redactions.Any(r =>
+                                    r.PageNumber == pageNum &&
+                                    Math.Abs(r.X - wordMatch.X) < 5 &&
+                                    Math.Abs(r.Y - wordMatch.Y) < 5);
+
+                                if (!alreadyRedacted)
+                                {
+                                    AddRedaction(redactions, auditFields, new List<PdfWordInfo> { wordMatch }, pageNum, nameWord, replacement, fieldType);
+                                }
+                            }
                         }
                     }
                 }
             }
 
-            return redactions;
+            // 4. POST-PROCESAMIENTO: Unir anonimizaciones adyacentes del mismo tipo
+            return MergeAdjacentRedactions(redactions);
+        }
+
+        /// <summary>
+        /// Combina las anonimizaciones que están muy cerca unas de otras y pertenecen a la misma etiqueta.
+        /// Esto evita el efecto "[P1-Nombre] texto [P1-Nombre]".
+        /// </summary>
+        private List<PdfRedactionInfo> MergeAdjacentRedactions(List<PdfRedactionInfo> redactions)
+        {
+            if (redactions == null || redactions.Count <= 1) return redactions;
+
+            // Ordenamos por página, luego por la altura (Y) y luego de izquierda a derecha (X)
+            var sorted = redactions
+                .OrderBy(r => r.PageNumber)
+                .ThenBy(r => r.Y)
+                .ThenBy(r => r.X)
+                .ToList();
+
+            var mergedList = new List<PdfRedactionInfo>();
+            var current = sorted[0];
+
+            for (int i = 1; i < sorted.Count; i++)
+            {
+                var next = sorted[i];
+
+                // Definimos las tolerancias
+                double verticalTolerance = 10.0; // Puntos de diferencia en Y para considerar que están en la misma línea
+                double horizontalTolerance = 50.0; // Qué tan separadas pueden estar en X para unirlas
+
+                bool isSamePage = current.PageNumber == next.PageNumber;
+
+                // CORRECCIÓN: Usamos ReplacementText en lugar de FieldType, ya que es lo que tenemos en el objeto
+                bool isSameFieldType = current.ReplacementText == next.ReplacementText;
+
+                bool isSameLine = Math.Abs(current.Y - next.Y) <= verticalTolerance;
+
+                // Verifica si la siguiente palabra empieza cerca de donde termina la actual
+                bool isCloseHorizontally = (next.X - (current.X + current.Width)) <= horizontalTolerance;
+
+                if (isSamePage && isSameFieldType && isSameLine && isCloseHorizontally)
+                {
+                    // FUSIONAR: Expandimos el ancho de 'current' para que abarque hasta el final de 'next'
+                    current.Width = (next.X + next.Width) - current.X;
+
+                    // Opcional: Concatenar el texto original para auditoría
+                    current.OriginalText += " " + next.OriginalText;
+                }
+                else
+                {
+                    // No se pueden fusionar, guardamos el actual y avanzamos al siguiente
+                    mergedList.Add(current);
+                    current = next;
+                }
+            }
+
+            // Agregar el último elemento que quedó en memoria
+            mergedList.Add(current);
+
+            return mergedList;
+        }
+
+        private void AddRedaction(
+            List<PdfRedactionInfo> redactions,
+            List<AuditFieldDto> auditFields,
+            List<PdfWordInfo> matchedWords,
+            int pageNumber,
+            string value,
+            string replacement,
+            string fieldType)
+        {
+            if (matchedWords.Count == 0) return;
+
+            // Ordenamos las palabras temporalmente de arriba a abajo y de izquierda a derecha
+            var sortedWords = matchedWords
+                .OrderByDescending(w => w.Y)
+                .ThenBy(w => w.X)
+                .ToList();
+
+            // Agrupar las palabras que pertenezcan a la misma línea (tolerancia de 8 puntos en Y)
+            var groups = new List<List<PdfWordInfo>>();
+            var currentGroup = new List<PdfWordInfo> { sortedWords[0] };
+            groups.Add(currentGroup);
+
+            for (int i = 1; i < sortedWords.Count; i++)
+            {
+                var word = sortedWords[i];
+                var lastWord = currentGroup.Last();
+
+                if (Math.Abs(word.Y - lastWord.Y) <= 8.0)
+                {
+                    currentGroup.Add(word);
+                }
+                else
+                {
+                    // Salto de línea detectado, creamos un nuevo grupo (nueva cajita)
+                    currentGroup = new List<PdfWordInfo> { word };
+                    groups.Add(currentGroup);
+                }
+            }
+
+            // Crear una caja de redacción por cada línea encontrada
+            foreach (var group in groups)
+            {
+                var x = group.Min(w => w.X);
+                var y = group.Min(w => w.Y);
+                var right = group.Max(w => w.X + w.Width);
+                var top = group.Max(w => w.Y + w.Height);
+
+                redactions.Add(new PdfRedactionInfo
+                {
+                    PageNumber = pageNumber,
+                    OriginalText = value,
+                    ReplacementText = replacement,
+                    X = x,
+                    Y = y,
+                    Width = right - x,
+                    Height = top - y
+                });
+            }
+
+            // La auditoría se hace una sola vez por el texto completo
+            var alreadyAudited = auditFields.Any(a =>
+                a.FieldType == fieldType &&
+                a.OriginalValue.Equals(value, StringComparison.OrdinalIgnoreCase));
+
+            if (!alreadyAudited)
+            {
+                auditFields.Add(new AuditFieldDto
+                {
+                    FieldType = fieldType,
+                    OriginalValue = value,
+                    AnonymizedValue = replacement
+                });
+            }
+        }
+
+        /// <summary>
+        /// Extrae todas las palabras agrupadas por página y forzando orden de lectura.
+        /// </summary>
+        private Dictionary<int, List<PdfWordInfo>> ExtractAllWordsByPage(
+            byte[] fileBytes)
+        {
+            var result = new Dictionary<int, List<PdfWordInfo>>();
+
+            using var stream = new MemoryStream(fileBytes);
+            using var pdf = PdfPigDocument.Open(stream);
+
+            foreach (var page in pdf.GetPages())
+            {
+                result[page.Number] = page.GetWords()
+                    .Select(w => new PdfWordInfo
+                    {
+                        PageNumber = page.Number,
+                        Text = w.Text,
+                        X = w.BoundingBox.Left,
+                        Y = w.BoundingBox.Bottom,
+                        Width = w.BoundingBox.Width,
+                        Height = w.BoundingBox.Height
+                    })
+                    // ORDEN DE LECTURA GARANTIZADO: 
+                    // 1. Agrupamos por línea Y (tolerancia de 5pts) descendente
+                    // 2. Ordenamos por X (izquierda a derecha)
+                    .OrderByDescending(w => Math.Round(w.Y / 5.0) * 5.0)
+                    .ThenBy(w => w.X)
+                    .ToList();
+            }
+
+            return result;
         }
 
         /// <summary>
@@ -341,7 +530,7 @@ namespace Anonimizador___API.Application.Services.Processors
             foreach (var page in pdf.GetPages())
             {
                 var wordGroups = page.GetWords()
-                    .GroupBy(w => Math.Round(w.BoundingBox.Bottom, 1))
+                    .GroupBy(w => Math.Round(w.BoundingBox.Bottom / 2) * 2)
                     .OrderByDescending(g => g.Key);
 
                 foreach (var group in wordGroups)
@@ -379,47 +568,71 @@ namespace Anonimizador___API.Application.Services.Processors
         }
 
         /// <summary>
-        /// Finds words that form a target phrase using sliding window.
+        /// Finds words that form a target phrase using an elastic sliding window.
         /// </summary>
         private List<PdfWordInfo> FindWordsForPhrase(
             List<PdfWordInfo> words,
             string phrase)
         {
-            var phraseWords = phrase.Split(
-                ' ',
-                StringSplitOptions.RemoveEmptyEntries);
+            if (string.IsNullOrWhiteSpace(phrase)) return new List<PdfWordInfo>();
 
-            for (int start = 0;
-                start <= words.Count - phraseWords.Length;
-                start++)
+            string Normalize(string text) =>
+                text.Replace(" ", "")
+                    .Replace("-", "")
+                    .Replace("\u2013", "")
+                    .Replace("\u2014", "")
+                    .ToLowerInvariant();
+
+            string normalizedPhrase = Normalize(phrase).TrimEnd(',', '.', ';', ':');
+
+            // 1. BÚSQUEDA ELÁSTICA (Frases completas y saltos de línea)
+            for (int start = 0; start < words.Count; start++)
             {
-                var window = words
-                    .Skip(start)
-                    .Take(phraseWords.Length)
-                    .ToList();
+                var currentMatch = new List<PdfWordInfo>();
+                var currentText = new StringBuilder();
 
-                var windowText = string.Join(
-                    " ",
-                    window.Select(w => w.Text));
-
-                if (windowText.Equals(
-                    phrase,
-                    StringComparison.OrdinalIgnoreCase))
+                for (int end = start; end < words.Count; end++)
                 {
-                    return window;
+                    currentMatch.Add(words[end]);
+                    currentText.Append(words[end].Text);
+
+                    var normalizedCurrent = Normalize(currentText.ToString());
+                    var normalizedCurrentTrimmed = normalizedCurrent.TrimEnd(',', '.', ';', ':');
+
+                    if (normalizedCurrentTrimmed == normalizedPhrase)
+                    {
+                        return currentMatch;
+                    }
+
+                    if (normalizedCurrent.Length > normalizedPhrase.Length + 5)
+                    {
+                        break;
+                    }
                 }
             }
 
-            // Fallback — búsqueda parcial
-            var matched = words
-                .Where(w => phrase.Contains(
-                    w.Text,
-                    StringComparison.OrdinalIgnoreCase))
-                .ToList();
+            // 2. BÚSQUEDA FALLBACK (Palabras individuales exactas)
+            var phraseWords = phrase.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            if (phraseWords.Length == 1)
+            {
+                var singleWord = Normalize(phraseWords[0]);
 
-            return matched.Count >= phraseWords.Length
-                ? matched
-                : new List<PdfWordInfo>();
+                var single = words.FirstOrDefault(w =>
+                {
+                    // Limpiamos todo rastro de puntuación alrededor de la palabra antes de comparar
+                    var normW = Normalize(w.Text).Trim(',', '.', ';', ':', '(', ')', '"', '\'');
+
+                    // Usamos == estricto para evitar que "Mora" atrape a "camora@empresa.cr"
+                    return normW == singleWord;
+                });
+
+                if (single != null)
+                {
+                    return new List<PdfWordInfo> { single };
+                }
+            }
+
+            return new List<PdfWordInfo>();
         }
     }
 }

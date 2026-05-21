@@ -191,24 +191,55 @@ namespace Anonimizador___API.Application.Services
                         "At least one person must be provided.");
                 }
 
-                var targets = request.Persons
-                    .Where(p =>
-                        !string.IsNullOrWhiteSpace(p.FullName) ||
-                        !string.IsNullOrWhiteSpace(p.Identification) ||
-                        !string.IsNullOrWhiteSpace(p.Email) ||
-                        !string.IsNullOrWhiteSpace(p.PhoneNumber) ||
-                        !string.IsNullOrWhiteSpace(p.Position) ||
-                        !string.IsNullOrWhiteSpace(p.Address))
-                    .Select(p => new AnonymizationTargetDto
+                var targets = new List<AnonymizationTargetDto>();
+
+                for (int i = 0; i < request.Persons.Count; i++)
+                {
+                    var p = request.Persons[i];
+
+                    if (string.IsNullOrWhiteSpace(p.FullName) &&
+                        string.IsNullOrWhiteSpace(p.Identification) &&
+                        string.IsNullOrWhiteSpace(p.Email) &&
+                        string.IsNullOrWhiteSpace(p.PhoneNumber) &&
+                        string.IsNullOrWhiteSpace(p.Position) &&
+                        string.IsNullOrWhiteSpace(p.Address))
+                        continue;
+
+                    // Target principal con índice real
+                    targets.Add(new AnonymizationTargetDto
                     {
+                        PersonIndex = i,
                         FullName = p.FullName,
                         Identification = p.Identification,
                         Email = p.Email,
                         PhoneNumber = p.PhoneNumber,
                         Position = p.Position,
                         Address = p.Address
-                    })
-                    .ToList();
+                    });
+
+                    // Variaciones — mismo índice de persona
+                    foreach (var variation in p.NameVariations)
+                    {
+                        if (!string.IsNullOrWhiteSpace(variation))
+                        {
+                            targets.Add(new AnonymizationTargetDto
+                            {
+                                PersonIndex = i, // ← mismo índice que la persona principal
+                                FullName = variation
+                            });
+                        }
+                    }
+                }
+
+                // LOG TEMPORAL
+                _logger.LogWarning("Targets built: {Count}", targets.Count);
+                foreach (var t in targets)
+                {
+                    _logger.LogWarning(
+                        "Target: PersonIndex={Idx} | FullName={Name}",
+                        t.PersonIndex,
+                        t.FullName ?? "null");
+                }
 
                 if (targets.Count == 0)
                 {

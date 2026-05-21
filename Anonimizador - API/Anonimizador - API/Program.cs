@@ -80,6 +80,9 @@ builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<DbConnectionFactory>();
 builder.Services.AddScoped<IDocumentProcessor, WordDocumentProcessor>();
 builder.Services.AddScoped<IDocumentProcessor, PdfDocumentProcessor>();
+// AI Analysis
+builder.Services.AddSingleton<OllamaService>();
+builder.Services.AddScoped<IDocumentAnalysisService, DocumentAnalysisService>();
 builder.Services.AddScoped<IDbConnection>(sp =>
     new SqlConnection(builder.Configuration.GetConnectionString("DefaultConnection")));
 

@@ -6,6 +6,7 @@
     /// </summary>
     public class AnonymizationTargetDto
     {
+        public int PersonIndex { get; set; }
         /// <summary>
         /// Nombre completo.
         /// </summary>

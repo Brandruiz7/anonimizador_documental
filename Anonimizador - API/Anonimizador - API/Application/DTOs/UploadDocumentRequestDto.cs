@@ -66,5 +66,10 @@ namespace Anonimizador___API.Application.DTOs
         /// Será reemplazado por [ADDRESS] en el documento.
         /// </summary>
         public string? Address { get; set; }
+
+        /// <summary>
+        /// Variaciones del nombre para buscar en el documento.
+        /// </summary>
+        public List<string> NameVariations { get; set; } = new();
     }
 }

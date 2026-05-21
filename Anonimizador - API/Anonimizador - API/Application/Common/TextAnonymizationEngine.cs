@@ -26,48 +26,42 @@ namespace Anonimizador___API.Application.Common
             for (int i = 0; i < targets.Count; i++)
             {
                 var target = targets[i];
-                var personLabel = $"Persona {i + 1}";
+                var personLabel = $"P{target.PersonIndex + 1}";
 
                 input = ReplaceAndAudit(
-                    input,
-                    target.FullName,
-                    $"[{personLabel} - Nombre]",
-                    $"{personLabel} - Nombre",
+                    input, target.FullName,
+                    $"[{personLabel}-Nombre]",
+                    $"{personLabel}-Nombre",
                     auditFields);
 
                 input = ReplaceAndAudit(
-                    input,
-                    target.Identification,
-                    $"[{personLabel} - Cédula]",
-                    $"{personLabel} - Cédula",
+                    input, target.Identification,
+                    $"[{personLabel}-Cédula]",
+                    $"{personLabel}-Cédula",
                     auditFields);
 
                 input = ReplaceAndAudit(
-                    input,
-                    target.Email,
-                    $"[{personLabel} - Correo]",
-                    $"{personLabel} - Correo",
+                    input, target.Email,
+                    $"[{personLabel}-Correo]",
+                    $"{personLabel}-Correo",
                     auditFields);
 
                 input = ReplaceAndAudit(
-                    input,
-                    target.PhoneNumber,
-                    $"[{personLabel} - Teléfono]",
-                    $"{personLabel} - Teléfono",
+                    input, target.PhoneNumber,
+                    $"[{personLabel}-Tel]",
+                    $"{personLabel}-Tel",
                     auditFields);
 
                 input = ReplaceAndAudit(
-                    input,
-                    target.Position,
-                    $"[{personLabel} - Cargo]",
-                    $"{personLabel} - Cargo",
+                    input, target.Position,
+                    $"[{personLabel}-Cargo]",
+                    $"{personLabel}-Cargo",
                     auditFields);
 
                 input = ReplaceAndAudit(
-                    input,
-                    target.Address,
-                    $"[{personLabel} - Dirección]",
-                    $"{personLabel} - Dirección",
+                    input, target.Address,
+                    $"[{personLabel}-Dir]",
+                    $"{personLabel}-Dir",
                     auditFields);
             }
 

@@ -16,6 +16,8 @@ namespace Anonimizador___API.API.Controllers
     public class DocumentsController : ControllerBase
     {
         private readonly IDocumentService _service;
+        private readonly IDocumentAnalysisService _analysisService;
+
 
         /// <summary>
         /// Constructor del controlador de documentos.
@@ -24,9 +26,10 @@ namespace Anonimizador___API.API.Controllers
         /// Servicio de aplicación encargado de la lógica de negocio
         /// para el procesamiento de documentos.
         /// </param>
-        public DocumentsController(IDocumentService service)
+        public DocumentsController(IDocumentService service, IDocumentAnalysisService analysisService)
         {
             _service = service;
+            _analysisService = analysisService;
         }
 
         /// <summary>
@@ -77,6 +80,27 @@ namespace Anonimizador___API.API.Controllers
         {
             var metrics = await _service.GetMetricsAsync();
             return Ok(metrics);
+        }
+
+        /// <summary>
+        /// Analyzes a document using hybrid AI + Regex detection.
+        /// Returns detected sensitive data for user review.
+        /// </summary>
+        /// <response code="200">Analysis result with detected persons</response>
+        /// <response code="400">Invalid file</response>
+        /// <response code="401">Unauthorized</response>
+        [HttpPost("analyze")]
+        [Authorize(Roles = "Admin,Operator")]
+        [RequestSizeLimit(104857600)]
+        [RequestFormLimits(MultipartBodyLengthLimit = 104857600)]
+        public async Task<IActionResult> Analyze(
+            [FromForm] DocumentAnalysisRequestDto request)
+        {
+            var result = await _analysisService.AnalyzeAsync(
+                request.File,
+                request.AdditionalContext);
+
+            return Ok(result);
         }
     }
 }
