@@ -1,12 +1,10 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Text.Json;
+using Anonimizador___Web.Models;
 
 namespace Anonimizador___Web.Controllers
 {
-    /// <summary>
-    /// Controlador del dashboard — muestra el historial de documentos procesados.
-    /// </summary>
     [Authorize]
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public class DashboardController : Controller
@@ -39,45 +37,52 @@ namespace Anonimizador___Web.Controllers
                 client.DefaultRequestHeaders.Authorization =
                     new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
 
-                var response = await client.GetAsync($"{apiUrl}/api/documents");
+                // Llamadas en paralelo
+                var documentsTask = client.GetAsync($"{apiUrl}/api/documents");
+                var metricsTask = client.GetAsync($"{apiUrl}/api/documents/metrics");
 
-                if (!response.IsSuccessStatusCode)
+                await Task.WhenAll(documentsTask, metricsTask);
+
+                var documentsResponse = await documentsTask;
+                var metricsResponse = await metricsTask;
+
+                var options = new JsonSerializerOptions
                 {
-                    _logger.LogError("API error: {Status}", response.StatusCode);
-                    ViewBag.Error = "No se pudo cargar el historial de documentos.";
-                    return View(new List<DocumentSummaryViewModel>());
+                    PropertyNameCaseInsensitive = true
+                };
+
+                // Documentos
+                var documents = new List<DocumentSummaryViewModel>();
+                if (documentsResponse.IsSuccessStatusCode)
+                {
+                    var json = await documentsResponse.Content.ReadAsStringAsync();
+                    documents = JsonSerializer.Deserialize<List<DocumentSummaryViewModel>>(
+                        json, options) ?? new();
                 }
 
-                var json = await response.Content.ReadAsStringAsync();
+                // Métricas
+                var metrics = new MetricsViewModel();
+                if (metricsResponse.IsSuccessStatusCode)
+                {
+                    var json = await metricsResponse.Content.ReadAsStringAsync();
+                    metrics = JsonSerializer.Deserialize<MetricsViewModel>(
+                        json, options) ?? new();
+                }
 
-                var documents = JsonSerializer.Deserialize<List<DocumentSummaryViewModel>>(
-                    json,
-                    new JsonSerializerOptions
-                    {
-                        PropertyNameCaseInsensitive = true
-                    }) ?? new List<DocumentSummaryViewModel>();
+                var viewModel = new DashboardViewModel
+                {
+                    Documents = documents,
+                    Metrics = metrics
+                };
 
-                return View(documents);
+                return View(viewModel);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error loading dashboard");
                 ViewBag.Error = "Error de conexión con el servicio.";
-                return View(new List<DocumentSummaryViewModel>());
+                return View(new DashboardViewModel());
             }
         }
-    }
-
-    /// <summary>
-    /// ViewModel para el resumen de documento en el dashboard.
-    /// </summary>
-    public class DocumentSummaryViewModel
-    {
-        public int DocumentId { get; set; }
-        public string OriginalFileName { get; set; } = string.Empty;
-        public long FileSizeKB { get; set; }
-        public string UploadedBy { get; set; } = string.Empty;
-        public DateTime CreatedAt { get; set; }
-        public string Status { get; set; } = string.Empty;
     }
 }

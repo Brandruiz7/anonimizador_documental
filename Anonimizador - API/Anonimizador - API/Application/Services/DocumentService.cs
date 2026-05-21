@@ -1,7 +1,6 @@
 ﻿using Anonimizador___API.Application.DTOs;
 using Anonimizador___API.Interfaces.Repositories;
 using Anonimizador___API.Interfaces.Services;
-using Microsoft.Extensions.Logging;
 using DocumentFormat.OpenXml.Packaging;
 using System.Security.Cryptography;
 
@@ -13,120 +12,185 @@ namespace Anonimizador___API.Application.Services
     public class DocumentService : IDocumentService
     {
         private readonly IDocumentRepository _repository;
-        private readonly IAnonymizationService _anonymizationService;
+        private readonly IEnumerable<IDocumentProcessor> _documentProcessors;
         private readonly ILogger<DocumentService> _logger;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="DocumentService"/> class.
         /// </summary>
-        /// <param name="repository">Document repository.</param>
-        /// <param name="anonymizationService">Anonymization service.</param>
-        /// <param name="logger">Logger service.</param>
         public DocumentService(
             IDocumentRepository repository,
-            IAnonymizationService anonymizationService,
+            IEnumerable<IDocumentProcessor> documentProcessors,
             ILogger<DocumentService> logger)
         {
             _repository = repository;
-            _anonymizationService = anonymizationService;
+            _documentProcessors = documentProcessors;
             _logger = logger;
         }
 
         /// <summary>
-        /// Versión con streaming seguro — minimiza copias en memoria.
-        /// Retorna un Stream listo para enviarse al cliente sin acumular el archivo completo.
+        /// Secure streaming version for document anonymization.
+        /// Supports DOCX and PDF files.
         /// </summary>
         public async Task<(Stream FileStream, string FileName, string ContentType)> UploadStreamAsync(
             UploadDocumentRequestDto request)
         {
             try
             {
-                _logger.LogInformation("Starting streaming anonymization process");
+                _logger.LogInformation(
+                    "Starting streaming anonymization process");
 
                 // =========================
-                // 1. VALIDACIONES
+                // 1. VALIDATIONS
                 // =========================
+
                 var file = request.File
                     ?? throw new Exception("File is null");
 
                 if (file.Length == 0)
+                {
                     throw new Exception("File is empty");
+                }
 
-                var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
-                if (extension != ".docx")
-                    throw new Exception("Invalid file extension");
+                var extension =
+                    Path.GetExtension(file.FileName)
+                        .ToLowerInvariant();
 
-                if (file.ContentType != "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+                var allowedExtensions =
+                    new[] { ".docx", ".pdf" };
+
+                if (!allowedExtensions.Contains(extension))
+                {
+                    throw new Exception(
+                        "Only DOCX and PDF files are supported");
+                }
+
+                var allowedContentTypes = new[]
+                {
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    "application/pdf"
+                };
+
+                if (!allowedContentTypes.Contains(file.ContentType))
+                {
                     throw new Exception("Invalid content type");
+                }
 
                 if (file.Length > 104857600)
-                    throw new Exception("File exceeds maximum allowed size");
+                {
+                    throw new Exception(
+                        "File exceeds maximum allowed size");
+                }
 
                 // =========================
-                // 2. CARGAR EN UN SOLO STREAM
-                // Copiamos directo al stream de trabajo
-                // sin crear un byte[] intermedio
+                // 2. LOAD FILE INTO MEMORY
                 // =========================
+
                 var workStream = new MemoryStream();
 
-                await file.OpenReadStream().CopyToAsync(workStream);
+                await file.OpenReadStream()
+                    .CopyToAsync(workStream);
 
                 workStream.Position = 0;
 
-                _logger.LogInformation("File loaded into work stream");
+                _logger.LogInformation(
+                    "File loaded into work stream");
 
                 // =========================
-                // 3. VALIDAR ESTRUCTURA DOCX
+                // 3. VALIDATE DOCUMENT
                 // =========================
+
                 try
                 {
-                    using var doc = WordprocessingDocument.Open(workStream, false);
+                    if (extension == ".docx")
+                    {
+                        using var doc =
+                            WordprocessingDocument.Open(
+                                workStream,
+                                false);
+                    }
+                    else if (extension == ".pdf")
+                    {
+                        workStream.Position = 0;
+
+                        using var reader =
+                            new StreamReader(
+                                workStream,
+                                leaveOpen: true);
+
+                        var header = new char[5];
+
+                        await reader.ReadBlockAsync(
+                            header,
+                            0,
+                            5);
+
+                        var pdfHeader =
+                            new string(header);
+
+                        if (!pdfHeader.StartsWith("%PDF"))
+                        {
+                            throw new Exception(
+                                "Invalid PDF document");
+                        }
+                    }
+
                     workStream.Position = 0;
                 }
                 catch
                 {
                     await workStream.DisposeAsync();
-                    throw new Exception("Invalid Word document");
+
+                    throw new Exception(
+                        $"Invalid document format for extension {extension}");
                 }
 
                 // =========================
-                // 4. HASH ORIGINAL
-                // Calculamos sobre el stream sin crear byte[]
+                // 4. ORIGINAL HASH
                 // =========================
+
                 string originalHash;
 
                 using (var sha256 = SHA256.Create())
                 {
                     workStream.Position = 0;
-                    var hashBytes = await sha256.ComputeHashAsync(workStream);
-                    originalHash = BitConverter.ToString(hashBytes).Replace("-", "");
+
+                    var hashBytes =
+                        await sha256.ComputeHashAsync(
+                            workStream);
+
+                    originalHash =
+                        BitConverter
+                            .ToString(hashBytes)
+                            .Replace("-", "");
+
                     workStream.Position = 0;
                 }
 
-                _logger.LogInformation("Original hash generated");
-
                 // =========================
-                // 5. REGISTRAR PROCESO
-                // =========================
-                var processId = await _repository.InsertDocumentProcessAsync(
-                    file.FileName,
-                    file.ContentType,
-                    file.Length / 1024,
-                    originalHash,
-                    request.UploadedBy);
-
-                _logger.LogInformation("Process registered. ProcessId: {ProcessId}", processId);
-
-                // =========================
-                // 6. CONSTRUIR TARGETS
+                // 5. REGISTER PROCESS
                 // =========================
 
-                // Validamos que venga al menos una persona
-                if (request.Persons == null || request.Persons.Count == 0)
-                    throw new Exception("At least one person must be provided.");
+                var processId =
+                    await _repository
+                        .InsertDocumentProcessAsync(
+                            file.FileName,
+                            file.ContentType,
+                            file.Length / 1024,
+                            originalHash,
+                            request.UploadedBy);
 
-                // Mapeamos cada PersonTargetDto a AnonymizationTargetDto
-                // y filtramos personas que no tengan ningún campo lleno
+                // =========================
+                // 6. BUILD TARGETS
+                // =========================
+
+                if (request.Persons == null ||
+                    request.Persons.Count == 0)
+                {
+                    throw new Exception(
+                        "At least one person must be provided.");
+                }
+
                 var targets = request.Persons
                     .Where(p =>
                         !string.IsNullOrWhiteSpace(p.FullName) ||
@@ -147,79 +211,99 @@ namespace Anonimizador___API.Application.Services
                     .ToList();
 
                 if (targets.Count == 0)
-                    throw new Exception("No anonymization targets provided. Fill at least one field per person.");
-
-                _logger.LogInformation(
-                    "Anonymization targets built: {Count} person(s)", targets.Count);
+                {
+                    throw new Exception(
+                        "No anonymization targets provided.");
+                }
 
                 // =========================
-                // 7. ANONIMIZAR
-                // Pasamos los bytes del workStream directamente
+                // 7. PROCESS DOCUMENT
                 // =========================
+
                 workStream.Position = 0;
-                var fileBytes = workStream.ToArray();
 
-                // Liberamos el workStream — ya no lo necesitamos
+                var fileBytes =
+                    workStream.ToArray();
+
                 await workStream.DisposeAsync();
 
-                var anonymizationResult = await _anonymizationService.AnonymizeAsync(
+                var processor =
+                    _documentProcessors
+                        .FirstOrDefault(
+                            p => p.CanProcess(extension));
+
+                if (processor == null)
+                {
+                    throw new Exception(
+                        $"No processor available for extension {extension}");
+                }
+
+                var anonymizationResult =
+                    await processor.ProcessAsync(
+                        fileBytes,
+                        targets);
+
+                Array.Clear(
                     fileBytes,
-                    targets);
-
-                // Limpiamos el array original apenas terminamos
-                Array.Clear(fileBytes, 0, fileBytes.Length);
-
-                _logger.LogInformation(
-                    "Document anonymized. Fields replaced: {Count}",
-                    anonymizationResult.AuditFields.Count);
+                    0,
+                    fileBytes.Length);
 
                 // =========================
-                // 8. HASH ANONIMIZADO + VERSIÓN
+                // 8. HASH + VERSION
                 // =========================
+
                 string anonymizedHash;
 
                 using (var sha256 = SHA256.Create())
                 {
-                    var hashBytes = sha256.ComputeHash(anonymizationResult.FileBytes);
-                    anonymizedHash = BitConverter.ToString(hashBytes).Replace("-", "");
+                    var hashBytes =
+                        sha256.ComputeHash(
+                            anonymizationResult.FileBytes);
+
+                    anonymizedHash =
+                        BitConverter
+                            .ToString(hashBytes)
+                            .Replace("-", "");
                 }
 
-                var versionId = await _repository.InsertDocumentVersionAsync(
-                    processId,
-                    "ANONYMIZED",
-                    anonymizedHash);
-
-                _logger.LogInformation(
-                    "Version registered. VersionId: {VersionId}", versionId);
+                var versionId =
+                    await _repository
+                        .InsertDocumentVersionAsync(
+                            processId,
+                            "ANONYMIZED",
+                            anonymizedHash);
 
                 // =========================
-                // 9. AUDITORÍA
+                // 9. AUDIT
                 // =========================
+
                 foreach (var field in anonymizationResult.AuditFields)
                 {
-                    await _repository.InsertAuditFieldAsync(
-                        versionId,
-                        field.FieldType,
-                        field.OriginalValue,
-                        field.AnonymizedValue);
+                    await _repository
+                        .InsertAuditFieldAsync(
+                            versionId,
+                            field.FieldType,
+                            field.OriginalValue,
+                            field.AnonymizedValue);
                 }
 
-                _logger.LogInformation(
-                    "Audit fields registered: {Count}", anonymizationResult.AuditFields.Count);
+                // =========================
+                // 10. UPDATE STATUS
+                // =========================
+
+                await _repository
+                    .UpdateProcessStatusAsync(
+                        processId,
+                        3);
 
                 // =========================
-                // 10. ACTUALIZAR ESTADO
+                // 11. RETURN STREAM
                 // =========================
-                await _repository.UpdateProcessStatusAsync(processId, 3);
 
-                _logger.LogInformation("Process status updated to ANONYMIZED");
+                var resultStream =
+                    new MemoryStream(
+                        anonymizationResult.FileBytes);
 
-                // =========================
-                // 11. RETORNAR STREAM
-                // Convertimos los bytes anonimizados a stream
-                // y los bytes se liberan cuando el stream se cierra
-                // =========================
-                var resultStream = new MemoryStream(anonymizationResult.FileBytes);
                 resultStream.Position = 0;
 
                 return (
@@ -230,27 +314,26 @@ namespace Anonimizador___API.Application.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error during streaming anonymization");
+                _logger.LogError(
+                    ex,
+                    "Error during streaming anonymization");
+
                 throw;
             }
         }
 
-        /// <summary>
-        /// Retorna el historial de documentos procesados para el dashboard.
-        /// </summary>
-        public async Task<IEnumerable<DocumentSummaryDto>> GetAllDocumentsAsync()
+        public async Task<IEnumerable<DocumentSummaryDto>>
+            GetAllDocumentsAsync()
         {
-            _logger.LogInformation("Fetching document history for dashboard");
-            return await _repository.GetAllDocumentsAsync();
+            return await _repository
+                .GetAllDocumentsAsync();
         }
 
-        /// <summary>
-        /// Retorna las métricas para el dashboard.
-        /// </summary>
-        public async Task<MetricsResponseDto> GetMetricsAsync()
+        public async Task<MetricsResponseDto>
+            GetMetricsAsync()
         {
-            _logger.LogInformation("Fetching metrics for dashboard");
-            return await _repository.GetMetricsAsync();
+            return await _repository
+                .GetMetricsAsync();
         }
     }
 }

@@ -1,22 +1,81 @@
-﻿@model List<Anonimizador___Web.Controllers.DocumentSummaryViewModel>
+﻿@model Anonimizador___Web.Models.DashboardViewModel
 @{
     ViewData["Title"] = "Dashboard";
+
+    var monthLabels = string.Join(",", Model.Metrics.ByMonth
+        .Select(m => $"'{m.Month}'"));
+    var monthData = string.Join(",", Model.Metrics.ByMonth
+        .Select(m => m.Total));
+
+    var statusLabels = string.Join(",", Model.Metrics.ByStatus
+        .Select(s => $"'{s.Status}'"));
+    var statusData = string.Join(",", Model.Metrics.ByStatus
+        .Select(s => s.Total));
+
+    var userLabels = string.Join(",", Model.Metrics.ByUser
+        .Select(u => $"'{u.Username}'"));
+    var userData = string.Join(",", Model.Metrics.ByUser
+        .Select(u => u.Total));
 }
 
-<h1 class="page-title">Historial de Documentos</h1>
+<h1 class="page-title">Dashboard</h1>
 
 @if (ViewBag.Error != null)
 {
     <div class="alert alert-error">@ViewBag.Error</div>
 }
 
+<!-- TARJETAS DE RESUMEN -->
+<div class="metrics-cards">
+    <div class="metric-card">
+        <span class="metric-icon">📄</span>
+        <div>
+            <p class="metric-value">@Model.Metrics.Summary.TotalDocuments</p>
+            <p class="metric-label">Total procesados</p>
+        </div>
+    </div>
+    <div class="metric-card">
+        <span class="metric-icon">📅</span>
+        <div>
+            <p class="metric-value">@Model.Metrics.Summary.ThisMonth</p>
+            <p class="metric-label">Este mes</p>
+        </div>
+    </div>
+    <div class="metric-card">
+        <span class="metric-icon">👤</span>
+        <div>
+            <p class="metric-value">@Model.Metrics.Summary.ActiveUsers</p>
+            <p class="metric-label">Usuarios activos</p>
+        </div>
+    </div>
+</div>
+
+<!-- GRÁFICO DE LÍNEA -->
+<div class="form-card chart-card">
+    <p class="form-card-title">Documentos anonimizados por mes</p>
+    <canvas id="lineChart"></canvas>
+</div>
+
+<!-- GRÁFICOS DE DONA -->
+<div class="charts-grid">
+    <div class="form-card chart-card">
+        <p class="form-card-title">Por estado</p>
+        <canvas id="statusChart"></canvas>
+    </div>
+    <div class="form-card chart-card">
+        <p class="form-card-title">Por usuario</p>
+        <canvas id="userChart"></canvas>
+    </div>
+</div>
+
+<!-- HISTORIAL -->
 <div class="form-card">
     <div class="dashboard-header">
-        <p class="form-card-title">Documentos procesados</p>
-        <span class="dashboard-count">@Model.Count registro(s)</span>
+        <p class="form-card-title">Historial de documentos</p>
+        <span class="dashboard-count">@Model.Documents.Count registro(s)</span>
     </div>
 
-    @if (Model.Count == 0)
+    @if (Model.Documents.Count == 0)
     {
         <p class="empty-state">No hay documentos procesados aún.</p>
     }
@@ -35,7 +94,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach (var doc in Model)
+                    @foreach (var doc in Model.Documents)
                     {
                         <tr>
                             <td class="td-id">@doc.DocumentId</td>
@@ -60,3 +119,99 @@
         </div>
     }
 </div>
+
+@section Scripts {
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+    <script>
+        const primaryColor  = '#36499b';
+        const primaryMid    = '#4571bf';
+        const primaryLight  = '#5eacf1';
+        const accentTeal    = '#61c0cd';
+        const accentGreen   = '#9fc54d';
+        const accentOrange  = '#ffa76c';
+
+        // Gráfico de línea — por mes
+        new Chart(document.getElementById('lineChart'), {
+            type: 'line',
+            data: {
+                labels: [@Html.Raw(monthLabels)],
+                datasets: [{
+                    label: 'Documentos',
+                    data: [@Html.Raw(monthData)],
+                    borderColor: primaryColor,
+                    backgroundColor: 'rgba(54, 73, 155, 0.08)',
+                    borderWidth: 2.5,
+                    pointBackgroundColor: accentTeal,
+                    pointRadius: 5,
+                    fill: true,
+                    tension: 0.4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: { stepSize: 1 },
+                        grid: { color: 'rgba(0,0,0,0.05)' }
+                    },
+                    x: {
+                        grid: { display: false }
+                    }
+                }
+            }
+        });
+
+        // Gráfico de dona — por estado
+        new Chart(document.getElementById('statusChart'), {
+            type: 'doughnut',
+            data: {
+                labels: [@Html.Raw(statusLabels)],
+                datasets: [{
+                    data: [@Html.Raw(statusData)],
+                    backgroundColor: [accentGreen, accentOrange, primaryLight, '#e74c3c'],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: { font: { size: 11 }, padding: 16 }
+                    }
+                },
+                cutout: '65%'
+            }
+        });
+
+        // Gráfico de dona — por usuario
+        new Chart(document.getElementById('userChart'), {
+            type: 'doughnut',
+            data: {
+                labels: [@Html.Raw(userLabels)],
+                datasets: [{
+                    data: [@Html.Raw(userData)],
+                    backgroundColor: [primaryColor, primaryMid, accentTeal, accentGreen, accentOrange],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: { font: { size: 11 }, padding: 16 }
+                    }
+                },
+                cutout: '65%'
+            }
+        });
+    </script>
+}

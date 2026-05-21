@@ -10,12 +10,13 @@
 <div class="form-card info-card">
     <p class="form-card-title">¿Cómo funciona?</p>
     <p class="info-text">
-        Esta herramienta permite anonimizar documentos Word (<strong>.docx</strong>)
+        Esta herramienta permite anonimizar documentos Word y PDF
+        (<strong>.docx, .pdf</strong>)
         reemplazando datos sensibles por etiquetas neutrales.
         Puede anonimizar información de una o más personas en el mismo documento.
     </p>
     <ul class="info-list">
-        <li>📄 Cargue el documento que desea anonimizar</li>
+        <li>📄 Cargue un documento Word o PDF</li>
         <li>👤 Agregue los datos de cada persona a anonimizar</li>
         <li>✅ Solo llene los campos que necesita reemplazar</li>
         <li>⬇️ El sistema generará y descargará automáticamente el documento anonimizado</li>
@@ -29,8 +30,8 @@
         <p class="form-card-title">Documento a anonimizar</p>
         <div class="form-grid">
             <div class="form-group">
-                <label for="File">Archivo (.docx)</label>
-                <input type="file" id="File" name="documento" accept=".docx" required />
+                <label for="File">Archivo (.docx, .pdf)</label>
+                <input type="file" id="File" name="documento" accept=".docx,.pdf" required />
             </div>
         </div>
     </div>
@@ -61,9 +62,8 @@
 
 @section Scripts {
     <script>
-        let personCount = 0;
+         let personCount = 0;
 
-        // Genera el HTML de una persona
         function createPersonCard(index) {
             return `
             <div class="person-card" id="person-${index}">
@@ -106,66 +106,59 @@
             </div>`;
         }
 
-        // Agrega una persona nueva
         function addPerson() {
             const container = document.getElementById('personsContainer');
             container.insertAdjacentHTML('beforeend', createPersonCard(personCount));
             personCount++;
         }
 
-        // Elimina una persona y renumera
         function removePerson(index) {
             const card = document.getElementById(`person-${index}`);
             if (card) card.remove();
             renumberPersons();
         }
 
-        // Renumera las personas después de eliminar
         function renumberPersons() {
             const cards = document.querySelectorAll('.person-card');
             cards.forEach((card, newIndex) => {
-                // Actualizar ID del card
                 card.id = `person-${newIndex}`;
-
-                // Actualizar título
                 card.querySelector('.person-title').textContent = `Persona ${newIndex + 1}`;
 
-                // Actualizar botón eliminar
                 const btnRemove = card.querySelector('.btn-remove');
                 if (btnRemove) {
                     btnRemove.setAttribute('onclick', `removePerson(${newIndex})`);
                 } else if (newIndex > 0) {
-                    // Si era el primero y ahora no lo es, agregar botón eliminar
                     const header = card.querySelector('.person-header');
                     header.insertAdjacentHTML('beforeend',
                         `<button type="button" class="btn-remove" onclick="removePerson(${newIndex})">✕ Eliminar</button>`);
                 }
 
-                // Actualizar names de los inputs
                 card.querySelectorAll('input').forEach(input => {
                     input.name = input.name.replace(/Persons\[\d+\]/, `Persons[${newIndex}]`);
                 });
             });
 
-            // Resetear contador al total actual
             personCount = cards.length;
         }
 
-        // Botón agregar persona
         document.getElementById('btnAddPerson').addEventListener('click', addPerson);
 
-        // Botón anonimizar
         document.getElementById('btnAnonymize').addEventListener('click', async function () {
             const fileInput = document.getElementById('File');
-            const uploadedBy = document.getElementById('UploadedBy').value.trim();
 
+            // Primero verificar que hay archivo
             if (!fileInput.files || fileInput.files.length === 0) {
-                showAlert('Debe seleccionar un archivo .docx.', 'error');
+                showAlert('Debe seleccionar un archivo .docx o .pdf.', 'error');
                 return;
             }
 
-            if (!uploadedBy) {
-                showAlert('Debe indicar quién sube el archivo.', 'error');
+            // Luego verificar la extensión
+            const allowedExtensions = ['docx', 'pdf'];
+            const fileName  = fileInput.files[0].name;
+            const extension = fileName.split('.').pop().toLowerCase();
+
+            if (!allowedExtensions.includes(extension)) {
+                showAlert('Formato no permitido. Solo .docx y .pdf', 'error');
                 return;
             }
 
@@ -177,10 +170,8 @@
 
             const formData = new FormData();
             formData.append('documento', fileInput.files[0]);
-            formData.append('UploadedBy', uploadedBy);
 
-            // Agregar campos de cada persona
-            cards.forEach((card, index) => {
+            cards.forEach((card) => {
                 card.querySelectorAll('input').forEach(input => {
                     formData.append(input.name, input.value);
                 });
@@ -225,7 +216,6 @@
             container.scrollIntoView({ behavior: 'smooth' });
         }
 
-        // Inicializar con Persona 1
         addPerson();
     </script>
 }

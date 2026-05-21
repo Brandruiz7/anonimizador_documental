@@ -127,9 +127,10 @@ namespace Anonimizador___Web.Controllers
                 var fileBytes = await response.Content.ReadAsByteArrayAsync();
                 var fileName = $"ANONYMIZED_{file.FileName}";
 
-                return File(fileBytes,
-                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                    fileName);
+                var contentType = file.ContentType ??
+                    "application/octet-stream";
+
+                return File(fileBytes, contentType, fileName);
             }
             catch (Exception ex)
             {

@@ -222,31 +222,28 @@ namespace Anonimizador___API.Infrastructure.Repositories
         {
             using var connection = _factory.CreateConnection();
 
-            // Ejecutamos los 4 SPs en paralelo para mayor rendimiento
-            var summaryTask = connection.QueryFirstOrDefaultAsync<MetricsSummaryDto>(
+            var summary = await connection.QueryFirstOrDefaultAsync<MetricsSummaryDto>(
                 "SP_METRICS_SUMMARY",
                 commandType: CommandType.StoredProcedure);
 
-            var byMonthTask = connection.QueryAsync<DocumentsByMonthDto>(
+            var byMonth = await connection.QueryAsync<DocumentsByMonthDto>(
                 "SP_METRICS_DOCUMENTS_BY_MONTH",
                 commandType: CommandType.StoredProcedure);
 
-            var byStatusTask = connection.QueryAsync<DocumentsByStatusDto>(
+            var byStatus = await connection.QueryAsync<DocumentsByStatusDto>(
                 "SP_METRICS_DOCUMENTS_BY_STATUS",
                 commandType: CommandType.StoredProcedure);
 
-            var byUserTask = connection.QueryAsync<DocumentsByUserDto>(
+            var byUser = await connection.QueryAsync<DocumentsByUserDto>(
                 "SP_METRICS_DOCUMENTS_BY_USER",
                 commandType: CommandType.StoredProcedure);
 
-            await Task.WhenAll(summaryTask, byMonthTask, byStatusTask, byUserTask);
-
             return new MetricsResponseDto
             {
-                Summary = await summaryTask ?? new MetricsSummaryDto(),
-                ByMonth = (await byMonthTask).ToList(),
-                ByStatus = (await byStatusTask).ToList(),
-                ByUser = (await byUserTask).ToList()
+                Summary = summary ?? new MetricsSummaryDto(),
+                ByMonth = byMonth.ToList(),
+                ByStatus = byStatus.ToList(),
+                ByUser = byUser.ToList()
             };
         }
     }

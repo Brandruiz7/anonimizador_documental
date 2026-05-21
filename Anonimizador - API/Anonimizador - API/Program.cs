@@ -1,4 +1,5 @@
 ﻿using Anonimizador___API.Application.Services;
+using Anonimizador___API.Application.Services.Processors;
 using Anonimizador___API.CrossCutting;
 using Anonimizador___API.Infrastructure.Data;
 using Anonimizador___API.Infrastructure.Repositories;
@@ -77,7 +78,8 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IDocumentRepository, DocumentRepository>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<DbConnectionFactory>();
-builder.Services.AddScoped<IAnonymizationService, AnonymizationService>();
+builder.Services.AddScoped<IDocumentProcessor, WordDocumentProcessor>();
+builder.Services.AddScoped<IDocumentProcessor, PdfDocumentProcessor>();
 builder.Services.AddScoped<IDbConnection>(sp =>
     new SqlConnection(builder.Configuration.GetConnectionString("DefaultConnection")));
 
