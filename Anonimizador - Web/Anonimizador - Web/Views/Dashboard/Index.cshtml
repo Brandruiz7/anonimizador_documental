@@ -123,12 +123,18 @@
 @section Scripts {
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
     <script>
-        const primaryColor  = '#36499b';
-        const primaryMid    = '#4571bf';
-        const primaryLight  = '#5eacf1';
-        const accentTeal    = '#61c0cd';
-        const accentGreen   = '#9fc54d';
-        const accentOrange  = '#ffa76c';
+        // Paleta cohesiva con el nuevo diseño
+        const cgr = {
+            navy:   '#36499b',
+            mid:    '#4571bf',
+            light:  '#5eacf1',
+            teal:   '#61c0cd',
+            mint:   '#9decd6',
+            lime:   '#c8f06e',
+            orange: '#ffa76c',
+            green:  '#9fc54d',
+            red:    '#e74c3c'
+        };
 
         // Gráfico de línea — por mes
         new Chart(document.getElementById('lineChart'), {
@@ -138,10 +144,12 @@
                 datasets: [{
                     label: 'Documentos',
                     data: [@Html.Raw(monthData)],
-                    borderColor: primaryColor,
-                    backgroundColor: 'rgba(54, 73, 155, 0.08)',
+                    borderColor: cgr.teal,
+                    backgroundColor: 'rgba(97,192,205,0.08)',
                     borderWidth: 2.5,
-                    pointBackgroundColor: accentTeal,
+                    pointBackgroundColor: cgr.teal,
+                    pointBorderColor: 'white',
+                    pointBorderWidth: 2,
                     pointRadius: 5,
                     fill: true,
                     tension: 0.4
@@ -151,16 +159,31 @@
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
-                    legend: { display: false }
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: '#1a2460',
+                        titleColor: '#9decd6',
+                        bodyColor: 'white',
+                        padding: 12,
+                        cornerRadius: 8
+                    }
                 },
                 scales: {
                     y: {
                         beginAtZero: true,
-                        ticks: { stepSize: 1 },
+                        ticks: {
+                            stepSize: 1,
+                            color: '#7a8099',
+                            font: { size: 11 }
+                        },
                         grid: { color: 'rgba(0,0,0,0.05)' }
                     },
                     x: {
-                        grid: { display: false }
+                        grid: { display: false },
+                        ticks: {
+                            color: '#7a8099',
+                            font: { size: 11 }
+                        }
                     }
                 }
             }
@@ -173,8 +196,14 @@
                 labels: [@Html.Raw(statusLabels)],
                 datasets: [{
                     data: [@Html.Raw(statusData)],
-                    backgroundColor: [accentGreen, accentOrange, primaryLight, '#e74c3c'],
-                    borderWidth: 0
+                    backgroundColor: [
+                        cgr.teal,
+                        cgr.orange,
+                        cgr.light,
+                        cgr.red
+                    ],
+                    borderWidth: 0,
+                    hoverOffset: 6
                 }]
             },
             options: {
@@ -183,10 +212,23 @@
                 plugins: {
                     legend: {
                         position: 'bottom',
-                        labels: { font: { size: 11 }, padding: 16 }
+                        labels: {
+                            font: { size: 11 },
+                            padding: 16,
+                            color: '#7a8099',
+                            usePointStyle: true,
+                            pointStyleWidth: 8
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: '#1a2460',
+                        titleColor: '#9decd6',
+                        bodyColor: 'white',
+                        padding: 12,
+                        cornerRadius: 8
                     }
                 },
-                cutout: '65%'
+                cutout: '68%'
             }
         });
 
@@ -197,8 +239,15 @@
                 labels: [@Html.Raw(userLabels)],
                 datasets: [{
                     data: [@Html.Raw(userData)],
-                    backgroundColor: [primaryColor, primaryMid, accentTeal, accentGreen, accentOrange],
-                    borderWidth: 0
+                    backgroundColor: [
+                        cgr.navy,
+                        cgr.teal,
+                        cgr.mid,
+                        cgr.mint,
+                        cgr.orange
+                    ],
+                    borderWidth: 0,
+                    hoverOffset: 6
                 }]
             },
             options: {
@@ -207,10 +256,23 @@
                 plugins: {
                     legend: {
                         position: 'bottom',
-                        labels: { font: { size: 11 }, padding: 16 }
+                        labels: {
+                            font: { size: 11 },
+                            padding: 16,
+                            color: '#7a8099',
+                            usePointStyle: true,
+                            pointStyleWidth: 8
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: '#1a2460',
+                        titleColor: '#9decd6',
+                        bodyColor: 'white',
+                        padding: 12,
+                        cornerRadius: 8
                     }
                 },
-                cutout: '65%'
+                cutout: '68%'
             }
         });
     </script>

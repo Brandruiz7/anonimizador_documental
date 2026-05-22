@@ -47,7 +47,55 @@
 
     <!-- LOADING OVERLAY -->
     <div class="loading-overlay" id="loadingOverlay">
-        <div class="loading-spinner"></div>
+        <div class="robot-spinner-wrapper">
+            <svg class="robot-spin-svg" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <g class="robot-body-spin">
+                    <!-- Cabeza -->
+                    <rect x="60" y="30" width="80" height="65" rx="16" fill="#1e2d6e" stroke="#61c0cd" stroke-width="2" />
+                    <!-- Antena -->
+                    <line x1="100" y1="30" x2="100" y2="14" stroke="#61c0cd" stroke-width="2" />
+                    <circle cx="100" cy="10" r="5" fill="#61c0cd" />
+                    <!-- Ojos -->
+                    <g class="robot-eye-spin-l">
+                        <rect x="72" y="48" width="22" height="18" rx="6" fill="#61c0cd" opacity="0.9" />
+                        <rect x="78" y="53" width="10" height="8" rx="3" fill="#0d1433" />
+                    </g>
+                    <g class="robot-eye-spin-r">
+                        <rect x="106" y="48" width="22" height="18" rx="6" fill="#61c0cd" opacity="0.9" />
+                        <rect x="112" y="53" width="10" height="8" rx="3" fill="#0d1433" />
+                    </g>
+                    <!-- Boca -->
+                    <rect x="80" y="78" width="40" height="8" rx="4" fill="#61c0cd" opacity="0.4" />
+                    <rect x="84" y="80" width="8" height="4" rx="2" fill="#61c0cd" />
+                    <rect x="96" y="80" width="8" height="4" rx="2" fill="#61c0cd" />
+                    <rect x="108" y="80" width="8" height="4" rx="2" fill="#61c0cd" />
+                    <!-- Cuerpo -->
+                    <rect x="55" y="100" width="90" height="70" rx="14" fill="#1e2d6e" stroke="#61c0cd" stroke-width="2" />
+                    <!-- Panel -->
+                    <rect x="70" y="112" width="60" height="46" rx="8" fill="#0d1433" opacity="0.6" />
+                    <line x1="75" y1="122" x2="125" y2="122" stroke="#61c0cd" stroke-width="1.5" opacity="0.6" />
+                    <line x1="75" y1="130" x2="115" y2="130" stroke="#61c0cd" stroke-width="1.5" opacity="0.4" />
+                    <line x1="75" y1="138" x2="120" y2="138" stroke="#61c0cd" stroke-width="1.5" opacity="0.5" />
+                    <line x1="75" y1="146" x2="108" y2="146" stroke="#61c0cd" stroke-width="1.5" opacity="0.3" />
+                    <!-- Scan line animada -->
+                    <line class="robot-scan-spin" x1="75" y1="130" x2="125" y2="130" stroke="#9decd6" stroke-width="2" opacity="0.8" />
+                    <!-- Piernas -->
+                    <rect x="68" y="172" width="22" height="20" rx="6" fill="#1e2d6e" stroke="#61c0cd" stroke-width="1.5" />
+                    <rect x="110" y="172" width="22" height="20" rx="6" fill="#1e2d6e" stroke="#61c0cd" stroke-width="1.5" />
+                    <!-- Brazos -->
+                    <rect class="robot-arm-spin-l" x="34" y="102" width="20" height="48" rx="10" fill="#1e2d6e" stroke="#61c0cd" stroke-width="1.5" />
+                    <rect class="robot-arm-spin-r" x="146" y="102" width="20" height="48" rx="10" fill="#1e2d6e" stroke="#61c0cd" stroke-width="1.5" />
+                    <!-- Lupa -->
+                    <g class="robot-lupa-spin">
+                        <circle cx="158" cy="82" r="18" stroke="#9decd6" stroke-width="3" fill="rgba(97,192,205,0.1)" />
+                        <line x1="171" y1="95" x2="182" y2="106" stroke="#9decd6" stroke-width="3" stroke-linecap="round" />
+                        <line x1="150" y1="82" x2="166" y2="82" stroke="#9decd6" stroke-width="1.5" opacity="0.6" />
+                        <line x1="158" y1="74" x2="158" y2="90" stroke="#9decd6" stroke-width="1.5" opacity="0.6" />
+                    </g>
+                </g>
+            </svg>
+            <div class="robot-spin-glow"></div>
+        </div>
         <span class="loading-text">Procesando documento...</span>
     </div>
 
