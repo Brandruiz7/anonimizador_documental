@@ -1,0 +1,374 @@
+﻿@{
+    ViewData["Title"] = "CGR Anonimizador";
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CGR — Anonimizador de Documentos</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="~/css/landing.css" asp-append-version="true" />
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
+</head>
+<body>
+
+    <div class="bg-mesh"></div>
+    <div class="bg-grid"></div>
+
+    <!-- NAV -->
+    <nav>
+        <div class="nav-logo">
+            <img src="~/images/Logotipo-CGR-blanco-transp.png" alt="CGR" />
+            <span class="nav-logo-text">Contraloría General<br>de la República</span>
+        </div>
+        <a href="@Url.Action("Index", "Home")" class="nav-cta">
+            Iniciar sesión →
+        </a>
+    </nav>
+
+    <!-- HERO -->
+    <section class="hero">
+        <div class="hero-badge">
+            <span class="hero-badge-dot"></span>
+            Sistema de Anonimización Documental
+        </div>
+
+        <h1 class="hero-title">
+            Protege datos<br>
+            <span class="accent">sensibles</span><br>
+            en segundos.
+        </h1>
+
+        <p class="hero-subtitle">
+            Anonimiza documentos jurídicos con precisión institucional.
+            Tecnología de IA combinada con Regex para detectar y reemplazar
+            datos personales y sensibles según la normativa PRODHAB.
+        </p>
+
+        <div class="hero-actions">
+            <a href="@Url.Action("Index", "Home")" class="btn-primary-hero">
+                Empezar ahora
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                    <path d="M3 8h10M9 4l4 4-4 4" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+            </a>
+            <a href="#como-funciona" class="btn-secondary-hero">
+                Ver cómo funciona ↓
+            </a>
+        </div>
+
+        <div class="hero-scroll">
+            <div class="scroll-line"></div>
+            Scroll
+        </div>
+    </section>
+
+    <!-- COMPARADOR -->
+    <section style="padding: 0 24px 120px; max-width: 1100px; margin: 0 auto;">
+        <p class="section-label reveal">Antes y después</p>
+        <h2 class="section-title reveal">Así queda tu documento</h2>
+        <p class="section-desc reveal">
+            Arrastra el divisor para comparar el documento original con el resultado anonimizado.
+            Los datos sensibles se reemplazan por etiquetas neutrales.
+        </p>
+
+        <div class="compare-wrapper reveal" id="compareWrapper">
+            <!-- Original -->
+            <div class="compare-original">
+                <div class="compare-doc">
+                    <div class="doc-header">Resolución N° DFO-0234-2026</div>
+                    <div class="doc-line">
+                        Que el señor <span class="doc-highlight">Carlos Alberto Mora Sandoval</span>,
+                        portador de la cédula <span class="doc-highlight">3-0456-0789</span>,
+                    </div>
+                    <div class="doc-line">
+                        con domicilio en <span class="doc-highlight">Barrio Los Yoses, Avenida 10, San José</span>,
+                    </div>
+                    <div class="doc-line">
+                        correo <span class="doc-highlight">camora@empresa.cr</span> y teléfono
+                        <span class="doc-highlight">2234-5678</span>, en su condición de
+                    </div>
+                    <div class="doc-line">
+                        <span class="doc-highlight">Gerente General</span> de la empresa Constructora Nacional S.A.,
+                    </div>
+                    <div class="doc-line">
+                        interpuso recurso de apelación ante esta Contraloría.
+                    </div>
+                </div>
+            </div>
+
+            <!-- Anonimizado -->
+            <div class="compare-anonymized" id="compareAnon">
+                <div class="compare-doc">
+                    <div class="doc-header">Resolución N° DFO-0234-2026</div>
+                    <div class="doc-line">
+                        Que el señor <span class="doc-redacted">[P1-Nombre]</span>,
+                        portador de la cédula <span class="doc-redacted">[P1-Cédula]</span>,
+                    </div>
+                    <div class="doc-line">
+                        con domicilio en <span class="doc-redacted">[P1-Dir]</span>,
+                    </div>
+                    <div class="doc-line">
+                        correo <span class="doc-redacted">[P1-Correo]</span> y teléfono
+                        <span class="doc-redacted">[P1-Tel]</span>, en su condición de
+                    </div>
+                    <div class="doc-line">
+                        <span class="doc-redacted">[P1-Cargo]</span> de la empresa Constructora Nacional S.A.,
+                    </div>
+                    <div class="doc-line">
+                        interpuso recurso de apelación ante esta Contraloría.
+                    </div>
+                </div>
+            </div>
+
+            <!-- Divisor -->
+            <div class="compare-divider" id="compareDivider">
+                <div class="compare-handle">⇔</div>
+            </div>
+        </div>
+
+        <div class="compare-labels">
+            <span>📄 Documento original</span>
+            <span>🔒 Documento anonimizado</span>
+        </div>
+    </section>
+
+    <!-- CÓMO FUNCIONA -->
+    <section class="how-section" id="como-funciona">
+        <p class="section-label reveal">El proceso</p>
+        <h2 class="section-title reveal">Tres pasos, resultado profesional</h2>
+        <p class="section-desc reveal">
+            Diseñado para funcionar sin fricción dentro del flujo de trabajo institucional.
+        </p>
+
+        <div class="steps-grid">
+            <div class="step-card reveal">
+                <div class="step-number">01</div>
+                <span class="step-icon">📄</span>
+                <h3 class="step-title">Sube el documento</h3>
+                <p class="step-desc">
+                    Carga tu archivo .docx o .pdf directamente en el sistema.
+                    Soporta documentos de hasta 100 MB con total seguridad.
+                </p>
+            </div>
+            <div class="step-card reveal">
+                <div class="step-number">02</div>
+                <span class="step-icon">🤖</span>
+                <h3 class="step-title">IA detecta los datos</h3>
+                <p class="step-desc">
+                    Nuestro motor híbrido combina Regex preciso con IA semántica
+                    para encontrar nombres, cédulas, correos, teléfonos y más.
+                </p>
+            </div>
+            <div class="step-card reveal">
+                <div class="step-number">03</div>
+                <span class="step-icon">⬇️</span>
+                <h3 class="step-title">Descarga anonimizado</h3>
+                <p class="step-desc">
+                    Recibe el documento con todos los datos sensibles reemplazados
+                    por etiquetas neutrales. Auditoría completa incluida.
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <!-- ROBOT -->
+    <section class="robot-section">
+        <p class="section-label reveal" style="display:inline-block;">Motor de IA</p>
+        <h2 class="section-title reveal">Análisis inteligente<br>en tiempo real</h2>
+        <p class="section-desc reveal" style="margin: 0 auto 48px;">
+            Nuestro asistente de IA escanea cada línea del documento buscando
+            patrones de datos personales y sensibles con precisión institucional.
+        </p>
+
+        <div class="robot-wrapper">
+            <div class="robot-glow"></div>
+            <svg class="robot-svg" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <g class="robot-body">
+                    <!-- Cabeza -->
+                    <rect x="60" y="30" width="80" height="65" rx="16" fill="#1e2d6e" stroke="#61c0cd" stroke-width="2" />
+                    <!-- Antena -->
+                    <line x1="100" y1="30" x2="100" y2="14" stroke="#61c0cd" stroke-width="2" />
+                    <circle cx="100" cy="10" r="5" fill="#61c0cd" />
+                    <!-- Ojos -->
+                    <g class="robot-eye-l">
+                        <rect x="72" y="48" width="22" height="18" rx="6" fill="#61c0cd" opacity="0.9" />
+                        <rect x="78" y="53" width="10" height="8" rx="3" fill="#0d1433" />
+                    </g>
+                    <g class="robot-eye-r">
+                        <rect x="106" y="48" width="22" height="18" rx="6" fill="#61c0cd" opacity="0.9" />
+                        <rect x="112" y="53" width="10" height="8" rx="3" fill="#0d1433" />
+                    </g>
+                    <!-- Boca -->
+                    <rect x="80" y="78" width="40" height="8" rx="4" fill="#61c0cd" opacity="0.4" />
+                    <rect x="84" y="80" width="8" height="4" rx="2" fill="#61c0cd" />
+                    <rect x="96" y="80" width="8" height="4" rx="2" fill="#61c0cd" />
+                    <rect x="108" y="80" width="8" height="4" rx="2" fill="#61c0cd" />
+                    <!-- Cuerpo -->
+                    <rect x="55" y="100" width="90" height="70" rx="14" fill="#1e2d6e" stroke="#61c0cd" stroke-width="2" />
+                    <!-- Panel -->
+                    <rect x="70" y="112" width="60" height="46" rx="8" fill="#0d1433" opacity="0.6" />
+                    <line x1="75" y1="122" x2="125" y2="122" stroke="#61c0cd" stroke-width="1.5" opacity="0.6" />
+                    <line x1="75" y1="130" x2="115" y2="130" stroke="#61c0cd" stroke-width="1.5" opacity="0.4" />
+                    <line x1="75" y1="138" x2="120" y2="138" stroke="#61c0cd" stroke-width="1.5" opacity="0.5" />
+                    <line x1="75" y1="146" x2="108" y2="146" stroke="#61c0cd" stroke-width="1.5" opacity="0.3" />
+                    <!-- Línea de scan animada -->
+                    <g class="robot-scan-line">
+                        <line x1="75" y1="130" x2="125" y2="130" stroke="#9decd6" stroke-width="2" opacity="0.8" />
+                    </g>
+                    <!-- Piernas -->
+                    <rect x="68" y="172" width="22" height="20" rx="6" fill="#1e2d6e" stroke="#61c0cd" stroke-width="1.5" />
+                    <rect x="110" y="172" width="22" height="20" rx="6" fill="#1e2d6e" stroke="#61c0cd" stroke-width="1.5" />
+                    <!-- Brazos -->
+                    <g class="robot-arm-l">
+                        <rect x="34" y="102" width="20" height="48" rx="10" fill="#1e2d6e" stroke="#61c0cd" stroke-width="1.5" />
+                    </g>
+                    <g class="robot-arm-r">
+                        <!-- Brazo derecho con lupa -->
+                        <rect x="146" y="102" width="20" height="48" rx="10" fill="#1e2d6e" stroke="#61c0cd" stroke-width="1.5" />
+                    </g>
+                    <!-- Lupa -->
+                    <g class="robot-lupa">
+                        <circle cx="158" cy="82" r="18" stroke="#9decd6" stroke-width="3" fill="rgba(97,192,205,0.1)" />
+                        <line x1="171" y1="95" x2="182" y2="106" stroke="#9decd6" stroke-width="3" stroke-linecap="round" />
+                        <!-- Cruz de mira -->
+                        <line x1="150" y1="82" x2="166" y2="82" stroke="#9decd6" stroke-width="1.5" opacity="0.6" />
+                        <line x1="158" y1="74" x2="158" y2="90" stroke="#9decd6" stroke-width="1.5" opacity="0.6" />
+                    </g>
+                </g>
+            </svg>
+        </div>
+
+        <div style="display:flex; gap:16px; justify-content:center; flex-wrap:wrap;">
+            <div style="display:flex; align-items:center; gap:8px; background:var(--glass-bg); border:1px solid var(--glass-border); border-radius:100px; padding:8px 20px; font-size:13px; color:var(--text-muted);">
+                <span style="color:var(--cgr-teal)">●</span> Detección por Regex
+            </div>
+            <div style="display:flex; align-items:center; gap:8px; background:var(--glass-bg); border:1px solid var(--glass-border); border-radius:100px; padding:8px 20px; font-size:13px; color:var(--text-muted);">
+                <span style="color:var(--cgr-mint)">●</span> IA Semántica (Ollama)
+            </div>
+            <div style="display:flex; align-items:center; gap:8px; background:var(--glass-bg); border:1px solid var(--glass-border); border-radius:100px; padding:8px 20px; font-size:13px; color:var(--text-muted);">
+                <span style="color:var(--cgr-lime)">●</span> Normativa PRODHAB
+            </div>
+        </div>
+    </section>
+
+    <!-- STATS -->
+    <section class="stats-section">
+        <div class="stats-grid">
+            <div class="stat-card reveal">
+                <div class="stat-number" data-target="500">0</div>
+                <div class="stat-label">Documentos procesados</div>
+            </div>
+            <div class="stat-card reveal">
+                <div class="stat-number" data-target="99">0</div>
+                <div class="stat-label">% de precisión</div>
+            </div>
+            <div class="stat-card reveal">
+                <div class="stat-number" data-target="12">0</div>
+                <div class="stat-label">Tipos de datos detectados</div>
+            </div>
+            <div class="stat-card reveal">
+                <div class="stat-number" data-target="2">0</div>
+                <div class="stat-label">Formatos soportados</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA FINAL -->
+    <section class="cta-section">
+        <div class="cta-glow"></div>
+        <h2 class="cta-title reveal">
+            ¿Listo para proteger<br>
+            <span style="background:linear-gradient(135deg,var(--cgr-teal),var(--cgr-mint));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">
+                tus documentos?
+            </span>
+        </h2>
+        <p class="cta-desc reveal">
+            Accede con tus credenciales institucionales y empieza a anonimizar en segundos.
+        </p>
+        <a href="@Url.Action("Index", "Home")" class="btn-cta-final reveal">
+            Iniciar sesión
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                <path d="M4 10h12M12 5l5 5-5 5" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+        </a>
+    </section>
+
+    <!-- FOOTER -->
+    <footer>
+        <p>Contraloría General de la República de Costa Rica · Sistema de Anonimización Documental · 2026</p>
+    </footer>
+
+    <script>
+        // ── SCROLL REVEAL ──
+        const revealEls = document.querySelectorAll('.reveal');
+        const observer  = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('visible');
+                    observer.unobserve(entry.target);
+                }
+            });
+        }, { threshold: 0.15 });
+        revealEls.forEach(el => observer.observe(el));
+
+        // ── COMPARADOR SLIDER ──
+        const wrapper  = document.getElementById('compareWrapper');
+        const anon     = document.getElementById('compareAnon');
+        const divider  = document.getElementById('compareDivider');
+        let isDragging = false;
+
+        function updateSlider(x) {
+            const rect  = wrapper.getBoundingClientRect();
+            let   pct   = (x - rect.left) / rect.width;
+            pct = Math.max(0.05, Math.min(0.95, pct));
+            const pctPx = pct * 100;
+            anon.style.clipPath    = `inset(0 ${100 - pctPx}% 0 0)`;
+            divider.style.left     = `${pctPx}%`;
+        }
+
+        wrapper.addEventListener('mousedown', e => { isDragging = true; updateSlider(e.clientX); });
+        document.addEventListener('mousemove', e => { if (isDragging) updateSlider(e.clientX); });
+        document.addEventListener('mouseup',   () => { isDragging = false; });
+
+        wrapper.addEventListener('touchstart', e => { isDragging = true; updateSlider(e.touches[0].clientX); });
+        document.addEventListener('touchmove', e => { if (isDragging) updateSlider(e.touches[0].clientX); });
+        document.addEventListener('touchend',  () => { isDragging = false; });
+
+        // Animación inicial del slider
+        setTimeout(() => {
+            let pct = 0.5, dir = -1;
+            const intro = setInterval(() => {
+                pct += dir * 0.008;
+                if (pct <= 0.2) dir = 1;
+                if (pct >= 0.8) { clearInterval(intro); return; }
+                anon.style.clipPath = `inset(0 ${(1 - pct) * 100}% 0 0)`;
+                divider.style.left  = `${pct * 100}%`;
+            }, 16);
+        }, 1200);
+
+        // ── CONTADORES ANIMADOS ──
+        const statNumbers = document.querySelectorAll('.stat-number[data-target]');
+        const counterObs  = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (!entry.isIntersecting) return;
+                const el     = entry.target;
+                const target = parseInt(el.dataset.target);
+                const suffix = target === 99 ? '%' : target === 2 ? '' : '+';
+                let   current = 0;
+                const step    = Math.max(1, Math.floor(target / 60));
+                const timer   = setInterval(() => {
+                    current = Math.min(current + step, target);
+                    el.textContent = current + suffix;
+                    if (current >= target) clearInterval(timer);
+                }, 24);
+                counterObs.unobserve(el);
+            });
+        }, { threshold: 0.5 });
+        statNumbers.forEach(el => counterObs.observe(el));
+    </script>
+</body>
+</html>

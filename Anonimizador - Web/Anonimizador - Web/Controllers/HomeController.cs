@@ -25,5 +25,12 @@ namespace Anonimizador___Web.Controllers
         /// Muestra el wizard de anonimización de documentos.
         /// </summary>
         public IActionResult Index() => View();
+
+        /// <summary>
+        /// Muestra la landing page de presentación del sistema.
+        /// </summary>
+        [AllowAnonymous]
+        [HttpGet("/landing")]
+        public IActionResult Landing() => View();
     }
 }

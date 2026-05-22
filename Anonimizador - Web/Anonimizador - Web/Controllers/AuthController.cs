@@ -118,7 +118,10 @@ namespace Anonimizador___Web.Controllers
                 _logger.LogInformation(
                     "Login exitoso: {Username} | Rol: {Role}", username, role);
 
-                if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl))
+                // Si el ReturnUrl es "/" o está vacío, ir al Home directamente
+                if (!string.IsNullOrEmpty(returnUrl) &&
+                    Url.IsLocalUrl(returnUrl) &&
+                    returnUrl != "/")
                     return Redirect(returnUrl);
 
                 return RedirectToAction("Index", "Home");
