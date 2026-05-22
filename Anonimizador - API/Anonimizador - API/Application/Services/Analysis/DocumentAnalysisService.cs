@@ -191,10 +191,13 @@ namespace Anonimizador___API.Application.Services.Analysis
                 TELEFONO: [número de teléfono, o NONE]
                 CARGO: [cargo o puesto, o NONE]
                 DIRECCION: [dirección física completa, o NONE]
+                INSTITUCION: [institución u organización a la que pertenece, o NONE]
+                CUENTA_BANCARIA: [número de cuenta bancaria si aparece, o NONE]
+                CONDICION_MEDICA: [condición médica o diagnóstico si aparece, o NONE]
                 VARIACIONES: [otras formas abreviadas del NOMBRE que aparecen en el texto, separadas por coma. NO incluyas cargos ni organizaciones. Si no hay variaciones escribe NONE]
                 ---FIN---
 
-                Para datos adicionales sensibles (cuentas bancarias, enfermedades, etc.):
+                Para datos adicionales sensibles que no pertenecen a una persona específica:
 
                 ---EXTRA---
                 TIPO: [BANK_ACCOUNT o DISEASE o OTHER]
@@ -282,6 +285,9 @@ namespace Anonimizador___API.Application.Services.Analysis
                         case "TELEFONO": currentPerson.PhoneNumber = value; break;
                         case "CARGO": currentPerson.Position = value; break;
                         case "DIRECCION": currentPerson.Address = value; break;
+                        case "INSTITUCION": currentPerson.Institution = value; break;  // ← nuevo
+                        case "CUENTA_BANCARIA": currentPerson.BankAccount = value; break;  // ← nuevo
+                        case "CONDICION_MEDICA": currentPerson.MedicalCondition = value; break; // ← nuevo
                         case "VARIACIONES":
                             currentPerson.NameVariations = value
                                 .Split(',', StringSplitOptions.RemoveEmptyEntries)

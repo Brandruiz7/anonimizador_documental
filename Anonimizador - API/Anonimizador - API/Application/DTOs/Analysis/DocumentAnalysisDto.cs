@@ -61,9 +61,17 @@ namespace Anonimizador___API.Application.DTOs.Analysis
         /// <summary>Dirección física.</summary>
         public string? Address { get; set; }
 
+        /// <summary>Institución u organización a la que pertenece.</summary>
+        public string? Institution { get; set; }
+
+        /// <summary>Número de cuenta bancaria.</summary>
+        public string? BankAccount { get; set; }
+
+        /// <summary>Condición médica o diagnóstico.</summary>
+        public string? MedicalCondition { get; set; }
+
         /// <summary>
         /// Formas abreviadas con que se menciona a la persona en el documento.
-        /// Ejemplos: "Mora Sandoval", "Carlos", "señor Ruiz".
         /// </summary>
         public List<string> NameVariations { get; set; } = new();
     }
