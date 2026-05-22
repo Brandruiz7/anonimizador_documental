@@ -82,12 +82,34 @@
 
 <!-- ETAPA 2A: MANUAL -->
 <div class="wizard-panel" id="panel-2-manual">
+
+    <!-- Datos generales del documento -->
+    <div class="form-card">
+        <p class="form-card-title">Datos generales del documento</p>
+        <div class="form-grid">
+            <div class="form-group">
+                <label>Número de expediente</label>
+                <input type="text"
+                       id="CaseNumber"
+                       name="GeneralData.CaseNumber"
+                       placeholder="Ej: 2026-DFO-001" />
+            </div>
+            <div class="form-group">
+                <label>Número de oficio</label>
+                <input type="text"
+                       id="OfficeNumber"
+                       name="GeneralData.OfficeNumber"
+                       placeholder="Ej: DJ-0933-2026" />
+            </div>
+        </div>
+    </div>
+
+    <!-- Personas -->
     <div class="form-card">
         <p class="form-card-title">Partes a anonimizar</p>
         <div id="personsContainer"></div>
         <div style="margin-top: 16px;">
-            <button type="button" id="btnAddPerson"
-                    class="btn-secondary">
+            <button type="button" id="btnAddPerson" class="btn-secondary">
                 + Anonimizar otra persona
             </button>
         </div>
@@ -335,16 +357,37 @@
                            </button>`
                         : ''}
                 </div>
+
+                <!-- Datos personales -->
+                <p class="person-section-label">Datos personales</p>
                 <div class="form-grid">
                     <div class="form-group">
                         <label>Nombre completo</label>
                         <input type="text" name="Persons[${index}].FullName"
                                placeholder="Ej: Juan Pérez Rodríguez" />
+                        <div id="variations-${index}-NameVariations"></div>
+                        <button type="button"
+                                class="btn-add-variation"
+                                style="margin-top:6px;"
+                                onclick="addFieldVariation(${index}, 'NameVariations',
+                                         'Variación nombre',
+                                         'Ej: Pérez Rodríguez, Juan Pérez...')">
+                            + Variación
+                        </button>
                     </div>
                     <div class="form-group">
                         <label>Identificación</label>
                         <input type="text" name="Persons[${index}].Identification"
                                placeholder="Ej: 1-2345-6789" />
+                        <div id="variations-${index}-IdVariations"></div>
+                        <button type="button"
+                                class="btn-add-variation"
+                                style="margin-top:6px;"
+                                onclick="addFieldVariation(${index}, 'IdVariations',
+                                         'Variación cédula',
+                                         'Ej: 123456789')">
+                            + Variación
+                        </button>
                     </div>
                     <div class="form-group">
                         <label>Correo electrónico</label>
@@ -355,6 +398,15 @@
                         <label>Teléfono</label>
                         <input type="text" name="Persons[${index}].PhoneNumber"
                                placeholder="Ej: 8888-8888" />
+                        <div id="variations-${index}-PhoneVariations"></div>
+                        <button type="button"
+                                class="btn-add-variation"
+                                style="margin-top:6px;"
+                                onclick="addFieldVariation(${index}, 'PhoneVariations',
+                                         'Variación teléfono',
+                                         'Ej: 88888888')">
+                            + Variación
+                        </button>
                     </div>
                     <div class="form-group">
                         <label>Cargo o puesto</label>
@@ -366,6 +418,38 @@
                         <input type="text" name="Persons[${index}].Address"
                                placeholder="Ej: San José, Costa Rica" />
                     </div>
+                    <div class="form-group">
+                        <label>Institución</label>
+                        <input type="text" name="Persons[${index}].Institution"
+                               placeholder="Ej: Banco Nacional de Costa Rica" />
+                    </div>
+                </div>
+
+                <!-- Datos sensibles -->
+                <p class="person-section-label" style="margin-top:16px;">
+                    Datos sensibles
+                </p>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Cuenta bancaria</label>
+                        <input type="text" name="Persons[${index}].BankAccount"
+                               placeholder="Ej: CR21-0152-0001-0026-3298-66" />
+                    </div>
+                    <div class="form-group">
+                        <label>Condición médica</label>
+                        <input type="text" name="Persons[${index}].MedicalCondition"
+                               placeholder="Ej: Diabetes tipo 2" />
+                    </div>
+                </div>
+
+                <!-- Texto libre -->
+                <p class="person-section-label" style="margin-top:16px;">
+                    Texto libre
+                </p>
+                <div class="form-group">
+                    <label>Texto exacto a anonimizar</label>
+                    <input type="text" name="Persons[${index}].FreeText"
+                           placeholder="Ej: expediente 2026-001, Sala IV" />
                 </div>
             </div>`;
         }
@@ -410,7 +494,7 @@
         // =============================================
         async function processManual() {
             const fileInput = document.getElementById('File');
-            const cards     = document.querySelectorAll('.person-card');
+            const cards     = document.querySelectorAll('.person-card');            
 
             if (cards.length === 0) {
                 showAlert('Agregue al menos una persona.', 'error');
@@ -420,6 +504,13 @@
             const formData = new FormData();
             formData.append('documento', fileInput.files[0]);
 
+            // Datos generales del documento
+            const caseNumber   = document.getElementById('CaseNumber')?.value   || '';
+            const officeNumber = document.getElementById('OfficeNumber')?.value || '';
+            if (caseNumber)   formData.append('GeneralData.CaseNumber',   caseNumber);
+            if (officeNumber) formData.append('GeneralData.OfficeNumber', officeNumber);
+
+            // Personas
             cards.forEach(card => {
                 card.querySelectorAll('input').forEach(input => {
                     formData.append(input.name, input.value);
@@ -433,8 +524,8 @@
         // MODO IA — ANÁLISIS
         // =============================================
         async function startAiAnalysis(additionalContext = '') {
-            document.getElementById('ai-analyzing').style.display = 'block';
-            document.getElementById('ai-results').style.display   = 'none';
+            document.getElementById('ai-analyzing').style.display  = 'block';
+            document.getElementById('ai-results').style.display    = 'none';
             document.getElementById('btn-process-ai').style.display = 'none';
 
             try {
@@ -470,52 +561,42 @@
             const list = document.getElementById('detectedList');
             list.innerHTML = '';
 
-            if (data.detectedPersons.length === 0 &&
-                data.additionalData.length === 0) {
-                list.innerHTML = `
-                    <p style="color:var(--text-muted); font-size:13px;">
-                        No se detectaron datos sensibles automáticamente.
-                        Agregue contexto adicional y reanalize.
-                    </p>`;
-            }
-
-            // Renderizar personas agrupadas
-            data.detectedPersons.forEach((person, i) => {
-                const fields = [
-                    { key: 'fullName',       label: 'Nombre',    value: person.fullName },
-                    { key: 'identification', label: 'Cédula',    value: person.identification },
-                    { key: 'email',          label: 'Correo',    value: person.email },
-                    { key: 'phoneNumber',    label: 'Teléfono',  value: person.phoneNumber },
-                    { key: 'position',       label: 'Cargo',     value: person.position },
-                    { key: 'address',        label: 'Dirección', value: person.address }
-                ].filter(f => f.value);
-
-                if (fields.length === 0) return;
-
-                // Card contenedora por persona
-                let fieldsHtml = fields.map(f => {
-                    const itemId = `detected-${i}-${f.key}`;
-                    return `
-                        <div class="detected-item" id="${itemId}">
-                            <span class="detected-item-type">${f.label}</span>
+            // Datos generales del documento
+            list.insertAdjacentHTML('beforeend', `
+                <div class="form-card" style="margin-bottom:16px;
+                     border-left: 3px solid var(--primary-mid);">
+                    <p class="person-section-label">Datos generales del documento</p>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Número de expediente</label>
                             <input type="text"
-                                   class="detected-item-input"
-                                   data-person="${i}"
-                                   data-field="${f.key}"
-                                   value="${f.value}" />
-                            <button type="button"
-                                    class="btn-remove-detected"
-                                    onclick="removeDetectedItem('${itemId}', ${i}, '${f.key}')"
-                                    title="Eliminar">✕</button>
-                        </div>`;
-                }).join('');
+                                   id="ai-CaseNumber"
+                                   placeholder="Ej: 2026-DFO-001" />
+                        </div>
+                        <div class="form-group">
+                            <label>Número de oficio</label>
+                            <input type="text"
+                                   id="ai-OfficeNumber"
+                                   placeholder="Ej: DJ-0933-2026" />
+                        </div>
+                    </div>
+                </div>`);
 
-                // Variaciones detectadas por IA
-                let variationsHtml = '';
+            // Si no detectó nada, igual mostramos una persona vacía
+            const persons = data.detectedPersons.length > 0
+                ? data.detectedPersons
+                : [{}];
+
+            persons.forEach((person, i) => {
+                // Agregar variaciones al objeto persona antes de construir la card
+                list.insertAdjacentHTML('beforeend', buildAiPersonCard(i, person));
+
+                // Agregar variaciones detectadas por IA después de insertar la card
                 if (person.nameVariations && person.nameVariations.length > 0) {
-                    variationsHtml = person.nameVariations.map((variation, vi) => {
-                        const varId = `variation-${i}-ai-${vi}`;
-                        return `
+                    person.nameVariations.forEach((variation, vi) => {
+                        const varId    = `variation-${i}-ai-${vi}`;
+                        const fieldsDiv = document.getElementById(`person-fields-${i}`);
+                        fieldsDiv.insertAdjacentHTML('beforeend', `
                             <div class="detected-item" id="${varId}">
                                 <span class="detected-item-type"
                                       style="color:var(--accent-teal);">
@@ -531,48 +612,21 @@
                                         class="btn-remove-detected"
                                         onclick="removeDetectedItem('${varId}')"
                                         title="Eliminar">✕</button>
-                            </div>`;
-                    }).join('');
+                            </div>`);
+                    });
                 }
-
-                list.insertAdjacentHTML('beforeend', `
-                    <div class="person-card" style="margin-bottom:16px;">
-                        <div class="person-header">
-                            <span class="person-title">Persona ${i + 1}</span>
-                            <button type="button" class="btn-remove"
-                                    onclick="removeAiPerson(${i})">
-                                ✕ Eliminar persona
-                            </button>
-                        </div>
-                        <div class="detected-list" id="person-fields-${i}">
-                            ${fieldsHtml}
-                            ${variationsHtml}
-                        </div>
-                        <div class="variations-container" id="variations-${i}"
-                             style="margin-top:10px;">
-                            <button type="button"
-                                    class="btn-add-variation"
-                                    onclick="addVariation(${i})">
-                                + Agregar variación del nombre
-                            </button>
-                            <span style="font-size:11px; color:var(--text-muted);
-                                         margin-left:10px;">
-                                Escribe solo el dato a reemplazar, no el contexto
-                            </span>
-                        </div>
-                    </div>`);
             });
 
-            // Datos adicionales
-            if (data.additionalData.length > 0) {
-                let extrasHtml = data.additionalData.map((d, i) => {
-                    const itemId = `detected-extra-${i}`;
+            // Datos adicionales detectados por IA
+            if (data.additionalData && data.additionalData.length > 0) {
+                let extrasHtml = data.additionalData.map((d, idx) => {
+                    const itemId = `detected-extra-${idx}`;
                     return `
                         <div class="detected-item" id="${itemId}">
                             <span class="detected-item-type">${d.type}</span>
                             <input type="text"
                                    class="detected-item-input"
-                                   data-extra="${i}"
+                                   data-extra="${idx}"
                                    value="${d.value}" />
                             <button type="button"
                                     class="btn-remove-detected"
@@ -594,18 +648,25 @@
                     </div>`);
             }
 
+            // Botón para agregar otra persona en modo IA
+            list.insertAdjacentHTML('beforeend', `
+                <div style="margin-top:8px; margin-bottom:16px;">
+                    <button type="button"
+                            class="btn-secondary"
+                            onclick="addAiPerson()">
+                        + Anonimizar otra persona
+                    </button>
+                </div>`);
+
             // Vista previa con resaltado
             const preview   = document.getElementById('previewBox');
             let previewText = data.previewText || '';
 
             data.detectedPersons.forEach(person => {
                 const valuesToHighlight = [
-                    person.fullName,
-                    person.identification,
-                    person.email,
-                    person.phoneNumber,
-                    person.position,
-                    person.address,
+                    person.fullName, person.identification, person.email,
+                    person.phoneNumber, person.position, person.address,
+                    person.institution, person.bankAccount, person.medicalCondition,
                     ...(person.nameVariations || [])
                 ].filter(v => v && typeof v === 'string');
 
@@ -619,54 +680,163 @@
 
             preview.innerHTML = previewText;
 
-            document.getElementById('ai-results').style.display    = 'block';
+            document.getElementById('ai-results').style.display     = 'block';
             document.getElementById('btn-process-ai').style.display = 'block';
+        }
+
+        // Agregar personas en modo IA
+        function addAiPerson() {
+            const cards     = document.querySelectorAll(
+                '#detectedList .person-card[data-person-index]');
+            const newIndex  = cards.length;
+            const addButton = document.querySelector('#detectedList .btn-secondary');
+
+            addButton.parentElement.insertAdjacentHTML('beforebegin',
+                buildAiPersonCard(newIndex, {}));
+        }
+
+        function buildAiPersonCard(i, person) {
+            const v = (val) => val || '';
+            return `
+                <div class="person-card"
+                     id="ai-person-${i}"
+                     data-person-index="${i}"
+                     style="margin-bottom:16px;">
+                    <div class="person-header">
+                        <span class="person-title">Persona ${i + 1}</span>
+                        ${i > 0
+                            ? `<button type="button" class="btn-remove"
+                                       onclick="removeAiPerson(${i})">
+                                   ✕ Eliminar persona
+                               </button>`
+                            : ''}
+                    </div>
+                    <p class="person-section-label">Datos personales</p>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Nombre completo</label>
+                            <input type="text" class="detected-item-input"
+                                   data-person="${i}" data-field="fullName"
+                                   value="${v(person.fullName)}"
+                                   placeholder="Ej: Juan Pérez Rodríguez" />
+                            <div id="variations-${i}-NameVariations"></div>
+                            <button type="button"
+                                    class="btn-add-variation"
+                                    style="margin-top:6px;"
+                                    onclick="addFieldVariation(${i}, 'NameVariations',
+                                             'Variación nombre',
+                                             'Ej: Pérez Rodríguez, Juan Pérez...')">
+                                + Variación
+                            </button>
+                        </div>
+                        <div class="form-group">
+                            <label>Identificación</label>
+                            <input type="text" class="detected-item-input"
+                                   data-person="${i}" data-field="identification"
+                                   value="${v(person.identification)}"
+                                   placeholder="Ej: 1-2345-6789" />
+                            <div id="variations-${i}-IdVariations"></div>
+                            <button type="button"
+                                    class="btn-add-variation"
+                                    style="margin-top:6px;"
+                                    onclick="addFieldVariation(${i}, 'IdVariations',
+                                             'Variación cédula',
+                                             'Ej: 123456789')">
+                                + Variación
+                            </button>
+                        </div>
+                        <div class="form-group">
+                            <label>Correo electrónico</label>
+                            <input type="email" class="detected-item-input"
+                                   data-person="${i}" data-field="email"
+                                   value="${v(person.email)}"
+                                   placeholder="Ej: juan@correo.com" />
+                        </div>
+                        <div class="form-group">
+                            <label>Teléfono</label>
+                            <input type="text" class="detected-item-input"
+                                   data-person="${i}" data-field="phoneNumber"
+                                   value="${v(person.phoneNumber)}"
+                                   placeholder="Ej: 8888-8888" />
+                            <div id="variations-${i}-PhoneVariations"></div>
+                            <button type="button"
+                                    class="btn-add-variation"
+                                    style="margin-top:6px;"
+                                    onclick="addFieldVariation(${i}, 'PhoneVariations',
+                                             'Variación teléfono',
+                                             'Ej: 88888888')">
+                                + Variación
+                            </button>
+                        </div>
+                        <div class="form-group">
+                            <label>Cargo o puesto</label>
+                            <input type="text" class="detected-item-input"
+                                   data-person="${i}" data-field="position"
+                                   value="${v(person.position)}"
+                                   placeholder="Ej: Director Ejecutivo" />
+                        </div>
+                        <div class="form-group">
+                            <label>Dirección</label>
+                            <input type="text" class="detected-item-input"
+                                   data-person="${i}" data-field="address"
+                                   value="${v(person.address)}"
+                                   placeholder="Ej: San José, Costa Rica" />
+                        </div>
+                        <div class="form-group">
+                            <label>Institución</label>
+                            <input type="text" class="detected-item-input"
+                                   data-person="${i}" data-field="institution"
+                                   value="${v(person.institution)}"
+                                   placeholder="Ej: Banco Nacional de Costa Rica" />
+                        </div>
+                    </div>
+                    <p class="person-section-label" style="margin-top:16px;">
+                        Datos sensibles
+                    </p>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Cuenta bancaria</label>
+                            <input type="text" class="detected-item-input"
+                                   data-person="${i}" data-field="bankAccount"
+                                   value="${v(person.bankAccount)}"
+                                   placeholder="Ej: CR21-0152-0001-0026-3298-66" />
+                        </div>
+                        <div class="form-group">
+                            <label>Condición médica</label>
+                            <input type="text" class="detected-item-input"
+                                   data-person="${i}" data-field="medicalCondition"
+                                   value="${v(person.medicalCondition)}"
+                                   placeholder="Ej: Diabetes tipo 2" />
+                        </div>
+                    </div>
+                    <div id="person-fields-${i}" style="margin-top:12px;"></div>
+                    <p class="person-section-label" style="margin-top:16px;">
+                        Texto libre
+                    </p>
+                    <div class="form-group">
+                        <label>Texto exacto a anonimizar</label>
+                        <input type="text" class="detected-item-input"
+                               data-person="${i}" data-field="freeText"
+                               placeholder="Ej: expediente 2026-001, Sala IV" />
+                    </div>
+                </div>`;
         }
 
         // Elimina una persona completa de la lista de IA
         function removeAiPerson(personIndex) {
-            const card = document.querySelector(
-                `#detectedList .person-card:nth-child(${personIndex + 1})`);
+            // Usar id directo en lugar de nth-child
+            const card = document.getElementById(`ai-person-${personIndex}`);
             if (card) card.remove();
 
             // Eliminar del estado
-            if (aiDetectedData && aiDetectedData.detectedPersons[personIndex]) {
+            if (aiDetectedData?.detectedPersons[personIndex])
                 aiDetectedData.detectedPersons.splice(personIndex, 1);
-            }
 
-            // Renumerar títulos
-            document.querySelectorAll('#detectedList .person-title').forEach(
-                (title, i) => {
-                    if (!title.style.color) // Solo las de personas, no "Datos adicionales"
-                        title.textContent = `Persona ${i + 1}`;
+            // Renumerar solo los títulos de personas — no "Datos adicionales"
+            document.querySelectorAll('#detectedList .person-card[data-person-index]')
+                .forEach((card, i) => {
+                    card.querySelector('.person-title').textContent = `Persona ${i + 1}`;
                 });
-        }
-
-        // Agrega una variación del nombre para una persona
-        function addVariation(personIndex) {
-            const container = document.getElementById(`variations-${personIndex}`);
-            const varId     = `variation-${personIndex}-${Date.now()}`;
-
-            container.insertAdjacentHTML('beforebegin', `
-                <div class="detected-item" id="${varId}">
-                    <span class="detected-item-type">
-                        Persona ${personIndex + 1} — Variación
-                    </span>
-                    <input type="text"
-                           class="detected-item-input variation-input"
-                           data-person="${personIndex}"
-                           data-field="fullName"
-                           data-variation="true"
-                           placeholder="Solo el dato a reemplazar. Ej: Brandon, señor Ruiz..." />
-                    <button type="button"
-                            class="btn-remove-detected"
-                            onclick="removeDetectedItem('${varId}')"
-                            title="Eliminar variación">✕</button>
-                </div>`);
-
-            document.getElementById(varId)
-                .querySelector('input')
-                .focus();
         }
 
         function removeDetectedItem(itemId, personIndex, fieldKey) {
@@ -693,6 +863,13 @@
             const formData  = new FormData();
             formData.append('documento', fileInput.files[0]);
 
+            // Datos generales del documento
+            const caseNumber   = document.getElementById('ai-CaseNumber')?.value   || '';
+            const officeNumber = document.getElementById('ai-OfficeNumber')?.value || '';
+            if (caseNumber)   formData.append('GeneralData.CaseNumber',   caseNumber);
+            if (officeNumber) formData.append('GeneralData.OfficeNumber', officeNumber);
+
+            // Leer todos los inputs de personas
             const inputs    = document.querySelectorAll('.detected-item-input');
             const personMap = {};
 
@@ -705,10 +882,21 @@
                 if (personIdx === undefined || !fieldKey || !value) return;
 
                 if (!personMap[personIdx])
-                    personMap[personIdx] = { variations: [] };
+                    personMap[personIdx] = {
+                        nameVariations:  [],
+                        idVariations:    [],
+                        phoneVariations: []
+                    };
 
                 if (isVariation) {
-                    personMap[personIdx].variations.push(value);
+                    // Distribuir variación al campo correcto según su name/data-field
+                    const fieldName = input.name || input.dataset.field || '';
+                    if (fieldName.includes('NameVariations'))
+                        personMap[personIdx].nameVariations.push(value);
+                    else if (fieldName.includes('IdVariations'))
+                        personMap[personIdx].idVariations.push(value);
+                    else if (fieldName.includes('PhoneVariations'))
+                        personMap[personIdx].phoneVariations.push(value);
                 } else {
                     personMap[personIdx][fieldKey] = value;
                 }
@@ -716,34 +904,31 @@
 
             const personIndexes = Object.keys(personMap);
 
-            if (personIndexes.length === 0) {
+            if (personIndexes.length === 0 && !caseNumber && !officeNumber) {
                 showAlert('No hay datos para anonimizar.', 'error');
                 return;
             }
 
-            // Enviar personas con sus variaciones incluidas
             personIndexes.forEach((idx, formIdx) => {
                 const p = personMap[idx];
 
-                if (p.fullName)
-                    formData.append(`Persons[${formIdx}].FullName`,       p.fullName);
-                if (p.identification)
-                    formData.append(`Persons[${formIdx}].Identification`, p.identification);
-                if (p.email)
-                    formData.append(`Persons[${formIdx}].Email`,          p.email);
-                if (p.phoneNumber)
-                    formData.append(`Persons[${formIdx}].PhoneNumber`,    p.phoneNumber);
-                if (p.position)
-                    formData.append(`Persons[${formIdx}].Position`,       p.position);
-                if (p.address)
-                    formData.append(`Persons[${formIdx}].Address`,        p.address);
+                if (p.fullName)         formData.append(`Persons[${formIdx}].FullName`,         p.fullName);
+                if (p.identification)   formData.append(`Persons[${formIdx}].Identification`,   p.identification);
+                if (p.email)            formData.append(`Persons[${formIdx}].Email`,            p.email);
+                if (p.phoneNumber)      formData.append(`Persons[${formIdx}].PhoneNumber`,      p.phoneNumber);
+                if (p.position)         formData.append(`Persons[${formIdx}].Position`,         p.position);
+                if (p.address)          formData.append(`Persons[${formIdx}].Address`,          p.address);
+                if (p.institution)      formData.append(`Persons[${formIdx}].Institution`,      p.institution);
+                if (p.bankAccount)      formData.append(`Persons[${formIdx}].BankAccount`,      p.bankAccount);
+                if (p.medicalCondition) formData.append(`Persons[${formIdx}].MedicalCondition`, p.medicalCondition);
+                if (p.freeText)         formData.append(`Persons[${formIdx}].FreeText`,         p.freeText);
 
-                // Variaciones como parte de la misma persona — mismo índice
-                p.variations.forEach((variation, vi) => {
-                    formData.append(
-                        `Persons[${formIdx}].NameVariations[${vi}]`,
-                        variation);
-                });
+                p.nameVariations.forEach((v, vi) =>
+                    formData.append(`Persons[${formIdx}].NameVariations[${vi}]`, v));
+                p.idVariations.forEach((v, vi) =>
+                    formData.append(`Persons[${formIdx}].IdVariations[${vi}]`, v));
+                p.phoneVariations.forEach((v, vi) =>
+                    formData.append(`Persons[${formIdx}].PhoneVariations[${vi}]`, v));
             });
 
             await submitAndDownload(formData, fileInput.files[0].name);
@@ -802,14 +987,16 @@
             resultFileName = '';
             aiDetectedData = null;
 
-            document.getElementById('File').value = '';
+            document.getElementById('File').value            = '';
+            document.getElementById('CaseNumber').value      = '';
+            document.getElementById('OfficeNumber').value    = '';
             document.getElementById('personsContainer').innerHTML = '';
             document.getElementById('detectedList').innerHTML     = '';
             document.getElementById('previewBox').innerHTML       = '';
             document.getElementById('additionalContext').value    = '';
             document.getElementById('ai-results').style.display  = 'none';
             document.getElementById('btn-process-ai').style.display = 'none';
-            document.getElementById('pdfPreviewFrame').src = '';
+            document.getElementById('pdfPreviewFrame').src        = '';
             document.getElementById('preview-pdf').style.display  = 'none';
             document.getElementById('preview-docx').style.display = 'none';
 

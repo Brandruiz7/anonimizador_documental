@@ -205,12 +205,25 @@ namespace Anonimizador___API.Application.Services.Processors
 
                 var fieldMappings = new List<(string? Value, string Replacement, string FieldType)>
                 {
-                    (target.FullName,       $"[{label}-Nombre]", $"{label}-Nombre"),
-                    (target.Identification, $"[{label}-Cédula]", $"{label}-Cédula"),
-                    (target.Email,          $"[{label}-Correo]", $"{label}-Correo"),
-                    (target.PhoneNumber,    $"[{label}-Tel]",    $"{label}-Tel"),
-                    (target.Position,       $"[{label}-Cargo]",  $"{label}-Cargo"),
-                    (target.Address,        $"[{label}-Dir]",    $"{label}-Dir")
+                    // Datos personales
+                    (target.FullName,          $"[{label}-Nombre]",          $"{label}-Nombre"),
+                    (target.Identification,    $"[{label}-Cédula]",           $"{label}-Cédula"),
+                    (target.Email,             $"[{label}-Correo]",           $"{label}-Correo"),
+                    (target.PhoneNumber,       $"[{label}-Tel]",              $"{label}-Tel"),
+                    (target.Position,          $"[{label}-Cargo]",            $"{label}-Cargo"),
+                    (target.Address,           $"[{label}-Dir]",              $"{label}-Dir"),
+                    (target.Institution,       $"[{label}-Institución]",      $"{label}-Institución"),
+
+                    // Datos sensibles
+                    (target.BankAccount,       $"[{label}-CuentaBancaria]",   $"{label}-CuentaBancaria"),
+                    (target.MedicalCondition,  $"[{label}-CondiciónMédica]",  $"{label}-CondiciónMédica"),
+
+                    // Texto libre
+                    (target.FreeText,          $"[{label}-Dato]",             $"{label}-Dato"),
+
+                    // Datos generales del documento
+                    (target.CaseNumber,        "[Expediente]",                "Expediente"),
+                    (target.OfficeNumber,      "[N° Oficio]",                 "Oficio")
                 };
 
                 foreach (var (value, replacement, fieldType) in fieldMappings)
@@ -219,6 +232,10 @@ namespace Anonimizador___API.Application.Services.Processors
 
                     var isAddress = fieldType.Contains("Dir");
                     var isName = fieldType.Contains("Nombre");
+                    var isSensitive = fieldType.Contains("CuentaBancaria") ||
+                                      fieldType.Contains("CondiciónMédica") ||
+                                      fieldType.Contains("Expediente") ||
+                                      fieldType.Contains("Oficio");
 
                     // Nivel 1: búsqueda en líneas agrupadas (frase exacta)
                     foreach (var line in lines)
@@ -248,8 +265,9 @@ namespace Anonimizador___API.Application.Services.Processors
                         }
                     }
 
-                    // Las direcciones no se buscan por palabra individual
-                    if (isAddress) continue;
+                    // Las direcciones, datos sensibles y datos generales
+                    // no se buscan por palabra individual
+                    if (isAddress || isSensitive) continue;
 
                     found = redactions.Any(r =>
                         r.OriginalText.Equals(value, StringComparison.OrdinalIgnoreCase));

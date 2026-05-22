@@ -28,12 +28,25 @@ namespace Anonimizador___API.Application.Common
             {
                 var label = $"P{target.PersonIndex + 1}";
 
+                // Datos personales
                 input = ReplaceAndAudit(input, target.FullName, $"[{label}-Nombre]", $"{label}-Nombre", auditFields);
                 input = ReplaceAndAudit(input, target.Identification, $"[{label}-Cédula]", $"{label}-Cédula", auditFields);
                 input = ReplaceAndAudit(input, target.Email, $"[{label}-Correo]", $"{label}-Correo", auditFields);
                 input = ReplaceAndAudit(input, target.PhoneNumber, $"[{label}-Tel]", $"{label}-Tel", auditFields);
                 input = ReplaceAndAudit(input, target.Position, $"[{label}-Cargo]", $"{label}-Cargo", auditFields);
                 input = ReplaceAndAudit(input, target.Address, $"[{label}-Dir]", $"{label}-Dir", auditFields);
+                input = ReplaceAndAudit(input, target.Institution, $"[{label}-Institución]", $"{label}-Institución", auditFields);
+
+                // Datos sensibles
+                input = ReplaceAndAudit(input, target.BankAccount, $"[{label}-CuentaBancaria]", $"{label}-CuentaBancaria", auditFields);
+                input = ReplaceAndAudit(input, target.MedicalCondition, $"[{label}-CondiciónMédica]", $"{label}-CondiciónMédica", auditFields);
+
+                // Texto libre
+                input = ReplaceAndAudit(input, target.FreeText, $"[{label}-Dato]", $"{label}-Dato", auditFields);
+
+                // Datos generales del documento
+                input = ReplaceAndAudit(input, target.CaseNumber, "[Expediente]", "Expediente", auditFields);
+                input = ReplaceAndAudit(input, target.OfficeNumber, "[N° Oficio]", "Oficio", auditFields);
             }
 
             return input;

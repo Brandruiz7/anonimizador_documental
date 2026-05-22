@@ -119,6 +119,19 @@ namespace Anonimizador___API.Application.Services.Documents
 
                 var targets = new List<AnonymizationTargetDto>();
 
+                // Datos generales del documento — índice -1
+                if (!string.IsNullOrWhiteSpace(request.GeneralData?.CaseNumber) ||
+                    !string.IsNullOrWhiteSpace(request.GeneralData?.OfficeNumber))
+                {
+                    targets.Add(new AnonymizationTargetDto
+                    {
+                        PersonIndex = -1,
+                        CaseNumber = request.GeneralData?.CaseNumber,
+                        OfficeNumber = request.GeneralData?.OfficeNumber
+                    });
+                }
+
+                // Personas
                 for (int i = 0; i < request.Persons.Count; i++)
                 {
                     var p = request.Persons[i];
@@ -128,7 +141,11 @@ namespace Anonimizador___API.Application.Services.Documents
                         string.IsNullOrWhiteSpace(p.Email) &&
                         string.IsNullOrWhiteSpace(p.PhoneNumber) &&
                         string.IsNullOrWhiteSpace(p.Position) &&
-                        string.IsNullOrWhiteSpace(p.Address))
+                        string.IsNullOrWhiteSpace(p.Address) &&
+                        string.IsNullOrWhiteSpace(p.Institution) &&
+                        string.IsNullOrWhiteSpace(p.BankAccount) &&
+                        string.IsNullOrWhiteSpace(p.MedicalCondition) &&
+                        string.IsNullOrWhiteSpace(p.FreeText))
                         continue;
 
                     targets.Add(new AnonymizationTargetDto
@@ -139,9 +156,14 @@ namespace Anonimizador___API.Application.Services.Documents
                         Email = p.Email,
                         PhoneNumber = p.PhoneNumber,
                         Position = p.Position,
-                        Address = p.Address
+                        Address = p.Address,
+                        Institution = p.Institution,
+                        BankAccount = p.BankAccount,
+                        MedicalCondition = p.MedicalCondition,
+                        FreeText = p.FreeText
                     });
 
+                    // Variaciones del nombre
                     foreach (var variation in p.NameVariations.Where(v =>
                         !string.IsNullOrWhiteSpace(v)))
                     {
@@ -149,6 +171,28 @@ namespace Anonimizador___API.Application.Services.Documents
                         {
                             PersonIndex = i,
                             FullName = variation
+                        });
+                    }
+
+                    // Variaciones de cédula — misma etiqueta que la cédula principal
+                    foreach (var variation in p.IdVariations.Where(v =>
+                        !string.IsNullOrWhiteSpace(v)))
+                    {
+                        targets.Add(new AnonymizationTargetDto
+                        {
+                            PersonIndex = i,
+                            Identification = variation
+                        });
+                    }
+
+                    // Variaciones de teléfono — misma etiqueta que el teléfono principal
+                    foreach (var variation in p.PhoneVariations.Where(v =>
+                        !string.IsNullOrWhiteSpace(v)))
+                    {
+                        targets.Add(new AnonymizationTargetDto
+                        {
+                            PersonIndex = i,
+                            PhoneNumber = variation
                         });
                     }
                 }

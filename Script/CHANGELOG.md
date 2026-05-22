@@ -56,3 +56,15 @@ Cada migración tiene su archivo correspondiente en la carpeta `Migrations/`.
 
 ✅ Integrado
 
+## [002] — 2026-05-21 — ExpandAnonymizationFields
+**Archivo:** `Migrations/002_ExpandAnonymizationFields.sql`
+**Autor:** Ruiz
+
+### Cambios
+- Sin cambios en BD — los nuevos campos se manejan en la capa de aplicación
+- Nuevos campos por persona: Institución, Cuenta bancaria, Condición médica, Texto libre
+- Nuevos campos generales: Número de expediente, Número de oficio
+
+### Estado
+✅ Integrado
+
