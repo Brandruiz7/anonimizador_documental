@@ -11,244 +11,9 @@
     <title>CGR — Anonimizador</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="~/css/landing.css" asp-append-version="true" />
-    <style>
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-
-        body {
-            font-family: 'DM Sans', sans-serif;
-            background: #0d1433;
-            color: white;
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
-        }
-
-        /* Fondo igual al landing */
-        .bg-mesh {
-            position: fixed;
-            inset: 0;
-            z-index: 0;
-            background: radial-gradient(ellipse 80% 60% at 20% 10%, rgba(97,192,205,0.18) 0%, transparent 60%), radial-gradient(ellipse 60% 80% at 80% 80%, rgba(54,73,155,0.35) 0%, transparent 60%), radial-gradient(ellipse 50% 50% at 50% 50%, rgba(26,36,96,1) 0%, #0d1433 100%);
-            pointer-events: none;
-        }
-
-        .bg-grid {
-            position: fixed;
-            inset: 0;
-            z-index: 0;
-            background-image: linear-gradient(rgba(97,192,205,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(97,192,205,0.04) 1px, transparent 1px);
-            background-size: 60px 60px;
-            pointer-events: none;
-        }
-
-        /* Card de login */
-        .login-wrapper {
-            position: relative;
-            z-index: 1;
-            width: 100%;
-            max-width: 420px;
-            padding: 24px;
-            animation: fadeUp 0.6s ease both;
-        }
-
-        .login-card {
-            background: rgba(255,255,255,0.06);
-            border: 1px solid rgba(255,255,255,0.12);
-            border-radius: 24px;
-            padding: 48px 40px;
-            backdrop-filter: blur(24px);
-            box-shadow: 0 40px 80px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.1);
-        }
-
-        /* Header */
-        .login-header {
-            text-align: center;
-            margin-bottom: 40px;
-        }
-
-        .login-logo {
-            width: 56px;
-            height: 56px;
-            object-fit: contain;
-            filter: brightness(0) invert(1);
-            margin-bottom: 16px;
-        }
-
-        .login-institution {
-            font-family: 'DM Sans', sans-serif;
-            font-size: 11px;
-            font-weight: 400;
-            color: rgba(255,255,255,0.4);
-            letter-spacing: 1.5px;
-            text-transform: uppercase;
-            margin-bottom: 6px;
-        }
-
-        .login-title {
-            font-family: 'Syne', sans-serif;
-            font-size: 22px;
-            font-weight: 700;
-            color: white;
-            letter-spacing: -0.5px;
-        }
-
-            .login-title span {
-                background: linear-gradient(135deg, #61c0cd, #9decd6);
-                -webkit-background-clip: text;
-                -webkit-text-fill-color: transparent;
-                background-clip: text;
-            }
-
-        /* Divisor */
-        .login-divider {
-            height: 1px;
-            background: linear-gradient(90deg, transparent, rgba(97,192,205,0.3), transparent);
-            margin-bottom: 32px;
-        }
-
-        /* Formulario */
-        .login-form {
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-        }
-
-        .form-field {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-
-            .form-field label {
-                font-size: 12px;
-                font-weight: 500;
-                color: rgba(255,255,255,0.6);
-                letter-spacing: 0.5px;
-                text-transform: uppercase;
-            }
-
-        .input-wrapper {
-            position: relative;
-        }
-
-        .input-icon {
-            position: absolute;
-            left: 14px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: rgba(97,192,205,0.6);
-            font-size: 16px;
-            pointer-events: none;
-        }
-
-        .form-field input {
-            width: 100%;
-            padding: 14px 16px 14px 42px;
-            background: rgba(255,255,255,0.05);
-            border: 1px solid rgba(255,255,255,0.1);
-            border-radius: 12px;
-            color: white;
-            font-family: 'DM Sans', sans-serif;
-            font-size: 14px;
-            font-weight: 400;
-            outline: none;
-            transition: all 0.2s ease;
-        }
-
-            .form-field input::placeholder {
-                color: rgba(255,255,255,0.25);
-            }
-
-            .form-field input:focus {
-                border-color: rgba(97,192,205,0.6);
-                background: rgba(97,192,205,0.06);
-                box-shadow: 0 0 0 3px rgba(97,192,205,0.12);
-            }
-
-        /* Botón */
-        .btn-login {
-            width: 100%;
-            padding: 16px;
-            background: linear-gradient(135deg, #61c0cd, #4571bf);
-            color: white;
-            font-family: 'Syne', sans-serif;
-            font-size: 15px;
-            font-weight: 700;
-            border: none;
-            border-radius: 12px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            margin-top: 8px;
-            box-shadow: 0 8px 24px rgba(97,192,205,0.25);
-            letter-spacing: 0.3px;
-        }
-
-            .btn-login:hover {
-                transform: translateY(-2px);
-                box-shadow: 0 12px 32px rgba(97,192,205,0.4);
-            }
-
-            .btn-login:active {
-                transform: translateY(0);
-            }
-
-        /* Error */
-        .login-error {
-            background: rgba(192,57,43,0.15);
-            border: 1px solid rgba(192,57,43,0.3);
-            border-radius: 10px;
-            padding: 12px 16px;
-            font-size: 13px;
-            color: #e74c3c;
-            text-align: center;
-        }
-
-        /* Footer del card */
-        .login-footer {
-            text-align: center;
-            margin-top: 28px;
-        }
-
-        .login-back {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            font-size: 13px;
-            font-weight: 400;
-            color: rgba(255,255,255,0.35);
-            text-decoration: none;
-            transition: color 0.2s;
-        }
-
-            .login-back:hover {
-                color: rgba(97,192,205,0.8);
-            }
-
-        /* Animación */
-        @@keyframes fadeUp {
-            from {
-                opacity: 0;
-                transform: translateY(24px);
-            }
-
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@300;400;600;700&family=Urbanist:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/login.css" asp-append-version="true" />
 </head>
 <body>
     <div class="bg-mesh"></div>
@@ -256,11 +21,9 @@
 
     <div class="login-wrapper">
         <div class="login-card">
-
-            <!-- Header -->
             <div class="login-header">
                 <img src="~/images/Logotipo-CGR-blanco-transp.png"
-                     alt="CGR Costa Rica"
+                     alt="CGR"
                      class="login-logo" />
                 <p class="login-institution">Contraloría General de la República</p>
                 <h1 class="login-title">
@@ -270,7 +33,6 @@
 
             <div class="login-divider"></div>
 
-            <!-- Errores -->
             @if (!ViewData.ModelState.IsValid)
             {
                 foreach (var error in ViewData.ModelState.Values
@@ -282,7 +44,6 @@
                 }
             }
 
-            <!-- Formulario -->
             <form method="post"
                   action="@Url.Action("Login", "Auth")"
                   class="login-form">
@@ -315,20 +76,9 @@
                 </div>
 
                 <button type="submit" class="btn-login">
-                    Iniciar sesión
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                        <path d="M3 8h10M9 4l4 4-4 4" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-                    </svg>
+                    Iniciar sesión →
                 </button>
             </form>
-
-            <!-- Volver -->
-            <div class="login-footer">
-                <a href="/landing" class="login-back">
-                    ← Volver al inicio
-                </a>
-            </div>
-
         </div>
     </div>
 </body>

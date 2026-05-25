@@ -143,7 +143,7 @@ namespace Anonimizador___Web.Controllers
             await HttpContext.SignOutAsync(
                 CookieAuthenticationDefaults.AuthenticationScheme);
 
-            return RedirectToAction("Landing", "Home");
+            return RedirectToAction("Login", "Auth");
         }
 
         /// <summary>

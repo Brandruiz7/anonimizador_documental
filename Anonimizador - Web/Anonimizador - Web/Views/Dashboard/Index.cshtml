@@ -17,107 +17,108 @@
     var userData = string.Join(",", Model.Metrics.ByUser
         .Select(u => u.Total));
 }
+<div class="light-page">
+    <h1 class="page-title">Dashboard</h1>
 
-<h1 class="page-title">Dashboard</h1>
-
-@if (ViewBag.Error != null)
-{
-    <div class="alert alert-error">@ViewBag.Error</div>
-}
-
-<!-- TARJETAS DE RESUMEN -->
-<div class="metrics-cards">
-    <div class="metric-card">
-        <span class="metric-icon">📄</span>
-        <div>
-            <p class="metric-value">@Model.Metrics.Summary.TotalDocuments</p>
-            <p class="metric-label">Total procesados</p>
-        </div>
-    </div>
-    <div class="metric-card">
-        <span class="metric-icon">📅</span>
-        <div>
-            <p class="metric-value">@Model.Metrics.Summary.ThisMonth</p>
-            <p class="metric-label">Este mes</p>
-        </div>
-    </div>
-    <div class="metric-card">
-        <span class="metric-icon">👤</span>
-        <div>
-            <p class="metric-value">@Model.Metrics.Summary.ActiveUsers</p>
-            <p class="metric-label">Usuarios activos</p>
-        </div>
-    </div>
-</div>
-
-<!-- GRÁFICO DE LÍNEA -->
-<div class="form-card chart-card">
-    <p class="form-card-title">Documentos anonimizados por mes</p>
-    <canvas id="lineChart"></canvas>
-</div>
-
-<!-- GRÁFICOS DE DONA -->
-<div class="charts-grid">
-    <div class="form-card chart-card">
-        <p class="form-card-title">Por estado</p>
-        <canvas id="statusChart"></canvas>
-    </div>
-    <div class="form-card chart-card">
-        <p class="form-card-title">Por usuario</p>
-        <canvas id="userChart"></canvas>
-    </div>
-</div>
-
-<!-- HISTORIAL -->
-<div class="form-card">
-    <div class="dashboard-header">
-        <p class="form-card-title">Historial de documentos</p>
-        <span class="dashboard-count">@Model.Documents.Count registro(s)</span>
-    </div>
-
-    @if (Model.Documents.Count == 0)
+    @if (ViewBag.Error != null)
     {
-        <p class="empty-state">No hay documentos procesados aún.</p>
+        <div class="alert alert-error">@ViewBag.Error</div>
     }
-    else
-    {
-        <div class="table-wrapper">
-            <table class="dashboard-table">
-                <thead>
-                    <tr>
-                        <th>#</th>
-                        <th>Archivo</th>
-                        <th>Tamaño</th>
-                        <th>Subido por</th>
-                        <th>Fecha</th>
-                        <th>Estado</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var doc in Model.Documents)
-                    {
+
+    <!-- TARJETAS DE RESUMEN -->
+    <div class="metrics-cards">
+        <div class="metric-card">
+            <span class="metric-icon">📄</span>
+            <div>
+                <p class="metric-value">@Model.Metrics.Summary.TotalDocuments</p>
+                <p class="metric-label">Total procesados</p>
+            </div>
+        </div>
+        <div class="metric-card">
+            <span class="metric-icon">📅</span>
+            <div>
+                <p class="metric-value">@Model.Metrics.Summary.ThisMonth</p>
+                <p class="metric-label">Este mes</p>
+            </div>
+        </div>
+        <div class="metric-card">
+            <span class="metric-icon">👤</span>
+            <div>
+                <p class="metric-value">@Model.Metrics.Summary.ActiveUsers</p>
+                <p class="metric-label">Usuarios activos</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- GRÁFICO DE LÍNEA -->
+    <div class="form-card chart-card">
+        <p class="form-card-title">Documentos anonimizados por mes</p>
+        <canvas id="lineChart"></canvas>
+    </div>
+
+    <!-- GRÁFICOS DE DONA -->
+    <div class="charts-grid">
+        <div class="form-card chart-card">
+            <p class="form-card-title">Por estado</p>
+            <canvas id="statusChart"></canvas>
+        </div>
+        <div class="form-card chart-card">
+            <p class="form-card-title">Por usuario</p>
+            <canvas id="userChart"></canvas>
+        </div>
+    </div>
+
+    <!-- HISTORIAL -->
+    <div class="form-card">
+        <div class="dashboard-header">
+            <p class="form-card-title">Historial de documentos</p>
+            <span class="dashboard-count">@Model.Documents.Count registro(s)</span>
+        </div>
+
+        @if (Model.Documents.Count == 0)
+        {
+            <p class="empty-state">No hay documentos procesados aún.</p>
+        }
+        else
+        {
+            <div class="table-wrapper">
+                <table class="dashboard-table">
+                    <thead>
                         <tr>
-                            <td class="td-id">@doc.DocumentId</td>
-                            <td class="td-filename">
-                                <span class="file-icon">📄</span>
-                                @doc.OriginalFileName
-                            </td>
-                            <td class="td-size">@doc.FileSizeKB KB</td>
-                            <td>@doc.UploadedBy</td>
-                            <td class="td-date">
-                                @doc.CreatedAt.ToString("dd/MM/yyyy HH:mm")
-                            </td>
-                            <td>
-                                <span class="status-badge status-@doc.Status.ToLower()">
-                                    @doc.Status
-                                </span>
-                            </td>
+                            <th>#</th>
+                            <th>Archivo</th>
+                            <th>Tamaño</th>
+                            <th>Subido por</th>
+                            <th>Fecha</th>
+                            <th>Estado</th>
                         </tr>
-                    }
-                </tbody>
-            </table>
-        </div>
-    }
+                    </thead>
+                    <tbody>
+                        @foreach (var doc in Model.Documents)
+                        {
+                            <tr>
+                                <td class="td-id">@doc.DocumentId</td>
+                                <td class="td-filename">
+                                    <span class="file-icon">📄</span>
+                                    @doc.OriginalFileName
+                                </td>
+                                <td class="td-size">@doc.FileSizeKB KB</td>
+                                <td>@doc.UploadedBy</td>
+                                <td class="td-date">
+                                    @doc.CreatedAt.ToString("dd/MM/yyyy HH:mm")
+                                </td>
+                                <td>
+                                    <span class="status-badge status-@doc.Status.ToLower()">
+                                        @doc.Status
+                                    </span>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
 </div>
 
 @section Scripts {

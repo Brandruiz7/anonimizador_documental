@@ -11,16 +11,24 @@
 </head>
 <body>
 
-    <!-- SIDEBAR -->
-    <aside class="sidebar">
-        <img src="~/images/Logotipo-CGR-blanco-transp.png"
-             alt="CGR Costa Rica"
-             class="sidebar-logo" />
-        <span class="sidebar-subtitle">Anonimizador<br />de Documentos</span>
+    <!-- TOPBAR -->
+    <header class="topbar">
+        <a href="@Url.Action("Index", "Home")" class="topbar-brand">
+            <img src="~/images/Logotipo-CGR-blanco-transp.png"
+                 alt="CGR"
+                 class="topbar-logo" />
+            <span class="topbar-name">Anonimizador<br>de Documentos</span>
+        </a>
 
-        <nav class="sidebar-nav">
+        <div class="topbar-divider"></div>
+
+        <nav class="topbar-nav">
             <a href="@Url.Action("Index", "Home")"
                class="@(ViewContext.RouteData.Values["controller"]?.ToString() == "Home" ? "active" : "")">
+                Inicio
+            </a>
+            <a href="@Url.Action("Index", "Anonymize")"
+               class="@(ViewContext.RouteData.Values["controller"]?.ToString() == "Anonymize" ? "active" : "")">
                 Anonimizar
             </a>
             <a href="@Url.Action("Index", "Dashboard")"
@@ -28,34 +36,33 @@
                 Dashboard
             </a>
         </nav>
-        <div class="sidebar-user">
-            <div class="sidebar-user-divider">
-                <p class="sidebar-user-label">Usuario</p>
-                <p class="sidebar-user-name">
+
+        <div class="topbar-user">
+            <div class="topbar-user-info">
+                <p class="topbar-user-name">
                     @User.FindFirst(System.Security.Claims.ClaimTypes.GivenName)?.Value
                 </p>
-                <p class="sidebar-user-role">
+                <p class="topbar-user-role">
                     @User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value
                 </p>
             </div>
-            <a href="@Url.Action("Logout", "Auth")"
-               class="sidebar-logout">
-                Cerrar sesión
+            <div class="topbar-avatar">
+                @(User.FindFirst(System.Security.Claims.ClaimTypes.GivenName)?.Value?.Substring(0, 1).ToUpper() ?? "U")
+            </div>
+            <a href="@Url.Action("Logout", "Auth")" class="topbar-logout">
+                Salir
             </a>
         </div>
-    </aside>
+    </header>
 
     <!-- LOADING OVERLAY -->
     <div class="loading-overlay" id="loadingOverlay">
         <div class="robot-spinner-wrapper">
             <svg class="robot-spin-svg" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <g class="robot-body-spin">
-                    <!-- Cabeza -->
                     <rect x="60" y="30" width="80" height="65" rx="16" fill="#1e2d6e" stroke="#61c0cd" stroke-width="2" />
-                    <!-- Antena -->
                     <line x1="100" y1="30" x2="100" y2="14" stroke="#61c0cd" stroke-width="2" />
                     <circle cx="100" cy="10" r="5" fill="#61c0cd" />
-                    <!-- Ojos -->
                     <g class="robot-eye-spin-l">
                         <rect x="72" y="48" width="22" height="18" rx="6" fill="#61c0cd" opacity="0.9" />
                         <rect x="78" y="53" width="10" height="8" rx="3" fill="#0d1433" />
@@ -64,28 +71,21 @@
                         <rect x="106" y="48" width="22" height="18" rx="6" fill="#61c0cd" opacity="0.9" />
                         <rect x="112" y="53" width="10" height="8" rx="3" fill="#0d1433" />
                     </g>
-                    <!-- Boca -->
                     <rect x="80" y="78" width="40" height="8" rx="4" fill="#61c0cd" opacity="0.4" />
                     <rect x="84" y="80" width="8" height="4" rx="2" fill="#61c0cd" />
                     <rect x="96" y="80" width="8" height="4" rx="2" fill="#61c0cd" />
                     <rect x="108" y="80" width="8" height="4" rx="2" fill="#61c0cd" />
-                    <!-- Cuerpo -->
                     <rect x="55" y="100" width="90" height="70" rx="14" fill="#1e2d6e" stroke="#61c0cd" stroke-width="2" />
-                    <!-- Panel -->
                     <rect x="70" y="112" width="60" height="46" rx="8" fill="#0d1433" opacity="0.6" />
                     <line x1="75" y1="122" x2="125" y2="122" stroke="#61c0cd" stroke-width="1.5" opacity="0.6" />
                     <line x1="75" y1="130" x2="115" y2="130" stroke="#61c0cd" stroke-width="1.5" opacity="0.4" />
                     <line x1="75" y1="138" x2="120" y2="138" stroke="#61c0cd" stroke-width="1.5" opacity="0.5" />
                     <line x1="75" y1="146" x2="108" y2="146" stroke="#61c0cd" stroke-width="1.5" opacity="0.3" />
-                    <!-- Scan line animada -->
                     <line class="robot-scan-spin" x1="75" y1="130" x2="125" y2="130" stroke="#9decd6" stroke-width="2" opacity="0.8" />
-                    <!-- Piernas -->
                     <rect x="68" y="172" width="22" height="20" rx="6" fill="#1e2d6e" stroke="#61c0cd" stroke-width="1.5" />
                     <rect x="110" y="172" width="22" height="20" rx="6" fill="#1e2d6e" stroke="#61c0cd" stroke-width="1.5" />
-                    <!-- Brazos -->
                     <rect class="robot-arm-spin-l" x="34" y="102" width="20" height="48" rx="10" fill="#1e2d6e" stroke="#61c0cd" stroke-width="1.5" />
                     <rect class="robot-arm-spin-r" x="146" y="102" width="20" height="48" rx="10" fill="#1e2d6e" stroke="#61c0cd" stroke-width="1.5" />
-                    <!-- Lupa -->
                     <g class="robot-lupa-spin">
                         <circle cx="158" cy="82" r="18" stroke="#9decd6" stroke-width="3" fill="rgba(97,192,205,0.1)" />
                         <line x1="171" y1="95" x2="182" y2="106" stroke="#9decd6" stroke-width="3" stroke-linecap="round" />
@@ -107,56 +107,28 @@
     <script src="~/js/site.js" asp-append-version="true"></script>
     @await RenderSectionAsync("Scripts", required: false)
 
-    <!-- AVISO DE EXPIRACIÓN DE SESIÓN -->
-    <div id="sessionWarning" style="
-        display: none;
-        position: fixed;
-        inset: 0;
-        background: rgba(54,73,155,0.18);
-        z-index: 9999;
-        align-items: center;
-        justify-content: center;">
-        <div style="
-            background: white;
-            border-radius: 8px;
-            padding: 32px 40px;
-            text-align: center;
-            box-shadow: 0 4px 24px rgba(0,0,0,0.12);
-            max-width: 380px;">
-            <p style="font-size:15px; font-weight:700; color:#36499b; margin-bottom:8px;">
-                ¿Desea continuar?
-            </p>
-            <p style="font-size:13px; color:#7a8099; margin-bottom:24px;">
+    <!-- SESSION WARNING -->
+    <div class="session-warning-overlay" id="sessionWarning">
+        <div class="session-warning-card">
+            <p class="session-warning-title">¿Desea continuar?</p>
+            <p class="session-warning-desc">
                 Su sesión está a punto de expirar por inactividad.
             </p>
-            <button onclick="renewSession()" style="
-                background: #61c0cd;
-                color: white;
-                border: none;
-                border-radius: 8px;
-                padding: 10px 28px;
-                font-size: 13px;
-                font-weight: 600;
-                cursor: pointer;
-                margin-right: 8px;">
-                Continuar sesión
-            </button>
-            <button onclick="window.location='/auth/logout'" style="
-                background: transparent;
-                color: #7a8099;
-                border: 1px solid #dce3f0;
-                border-radius: 8px;
-                padding: 10px 20px;
-                font-size: 13px;
-                cursor: pointer;">
-                Cerrar sesión
-            </button>
+            <div class="session-warning-actions">
+                <button onclick="renewSession()" class="btn-session-continue">
+                    Continuar
+                </button>
+                <button onclick="window.location='/auth/logout'"
+                        class="btn-session-logout">
+                    Cerrar sesión
+                </button>
+            </div>
         </div>
     </div>
 
     <script>
-        const WARNING_MS = 25 * 60 * 1000; // 25 minutos
-        const EXPIRE_MS  = 30 * 60 * 1000; // 30 minutos
+        const WARNING_MS  = 25 * 60 * 1000;
+        const EXPIRE_MS   = 30 * 60 * 1000;
         const SESSION_KEY = 'session_start';
 
         let warningTimer;
@@ -164,32 +136,24 @@
 
         /**
          * Inicia o retoma el timer de sesión.
-         * Usa sessionStorage para persistir el tiempo de inicio
-         * entre navegaciones sin resetear el countdown.
+         * Usa sessionStorage para persistir entre navegaciones.
          */
         function initSessionTimer() {
-            const now        = Date.now();
+            const now          = Date.now();
             const sessionStart = parseInt(sessionStorage.getItem(SESSION_KEY) || '0');
 
-            // Si no hay sesión guardada o es inválida, iniciar nueva
             if (!sessionStart || sessionStart > now) {
                 sessionStorage.setItem(SESSION_KEY, now.toString());
                 scheduleTimers(WARNING_MS, EXPIRE_MS);
                 return;
             }
 
-            // Calcular tiempo restante basado en cuándo inició la sesión
-            const elapsed    = now - sessionStart;
+            const elapsed     = now - sessionStart;
             const warningLeft = WARNING_MS - elapsed;
             const expireLeft  = EXPIRE_MS  - elapsed;
 
-            // Si ya expiró, cerrar sesión inmediatamente
-            if (expireLeft <= 0) {
-                window.location = '/auth/logout';
-                return;
-            }
+            if (expireLeft <= 0) { window.location = '/auth/logout'; return; }
 
-            // Si ya pasó el tiempo de aviso, mostrar aviso ahora
             if (warningLeft <= 0) {
                 document.getElementById('sessionWarning').style.display = 'flex';
                 scheduleTimers(0, expireLeft);
@@ -201,8 +165,6 @@
 
         /**
          * Programa los timers de aviso y expiración.
-         * param {number} warningDelay - Milisegundos para mostrar el aviso
-         * param {number} expireDelay  - Milisegundos para cerrar la sesión
          */
         function scheduleTimers(warningDelay, expireDelay) {
             clearTimeout(warningTimer);
@@ -220,8 +182,7 @@
         }
 
         /**
-         * Renueva la sesión del usuario haciendo un request al servidor
-         * y reiniciando el timer desde cero.
+         * Renueva la sesión y reinicia el timer.
          */
         function renewSession() {
             document.getElementById('sessionWarning').style.display = 'none';
@@ -234,13 +195,11 @@
                 .catch(() => window.location = '/auth/logout');
         }
 
-        // Limpiar sessionStorage al cerrar sesión explícitamente
         document.querySelector('a[href*="logout"]')
             ?.addEventListener('click', () => {
                 sessionStorage.removeItem(SESSION_KEY);
             });
 
-        // Arrancar el timer al cargar la página
         initSessionTimer();
     </script>
 </body>
