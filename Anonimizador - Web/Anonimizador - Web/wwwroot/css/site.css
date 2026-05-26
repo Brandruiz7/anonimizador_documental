@@ -1932,3 +1932,256 @@ body.login-page {
         gap: 8px;
     }
 }
+
+.btn-spinner {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(255,255,255,0.4);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    margin-right: 8px;
+    vertical-align: middle;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* =============================================
+   PÁGINAS DE ERROR
+   ============================================= */
+.error-page {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 70vh;
+    text-align: center;
+    padding: 48px 24px;
+}
+
+.error-robot-wrapper {
+    position: relative;
+    display: inline-block;
+    margin-bottom: 32px;
+}
+
+.error-robot-svg {
+    width: 160px;
+    height: 160px;
+    filter: drop-shadow(0 0 30px rgba(97,192,205,0.25));
+}
+
+.error-robot-glow {
+    position: absolute;
+    inset: -20px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(97,192,205,0.12) 0%, transparent 70%);
+    animation: glowPulse 3s ease-in-out infinite;
+}
+
+.error-robot-glow--red {
+    background: radial-gradient(circle, rgba(224,92,92,0.12) 0%, transparent 70%);
+}
+
+.error-robot-glow--yellow {
+    background: radial-gradient(circle, rgba(240,165,0,0.12) 0%, transparent 70%);
+}
+
+.error-robot-body {
+    animation: robotFloat 3s ease-in-out infinite;
+}
+
+.error-arm-l {
+    animation: armSwing 2s ease-in-out infinite;
+    transform-origin: 44px 110px;
+}
+
+.error-arm-r {
+    animation: armSwingR 2s ease-in-out infinite 0.3s;
+    transform-origin: 156px 110px;
+}
+
+.error-eye-blink-fast {
+    animation: blink 1.5s ease-in-out infinite;
+}
+
+.error-robot-shake {
+    animation: robotFloat 3s ease-in-out infinite, errorShake 0.4s ease-in-out infinite alternate;
+}
+
+.error-smoke-1 {
+    animation: smokeDrift 2s ease-out infinite;
+}
+
+.error-smoke-2 {
+    animation: smokeDrift 2s ease-out infinite 0.3s;
+}
+
+.error-smoke-3 {
+    animation: smokeDrift 2s ease-out infinite 0.6s;
+}
+
+.error-code {
+    font-family: 'Syne', sans-serif;
+    font-size: 80px;
+    font-weight: 800;
+    color: rgba(97,192,205,0.15);
+    line-height: 1;
+    margin-bottom: 8px;
+    letter-spacing: -4px;
+}
+
+.error-code--red {
+    color: rgba(224,92,92,0.15);
+}
+
+.error-code--yellow {
+    color: rgba(240,165,0,0.15);
+}
+
+.error-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--text-primary, #fff);
+    margin-bottom: 12px;
+}
+
+.error-desc {
+    font-size: 15px;
+    color: var(--text-muted, #8899aa);
+    line-height: 1.7;
+    margin-bottom: 20px;
+}
+
+.error-path {
+    background: rgba(97,192,205,0.08);
+    border: 1px solid rgba(97,192,205,0.2);
+    border-radius: 8px;
+    padding: 8px 16px;
+    margin-bottom: 28px;
+    font-size: 13px;
+    color: var(--text-muted, #8899aa);
+}
+
+.error-btn {
+    display: inline-block;
+    padding: 12px 28px;
+    background: transparent;
+    border: 1px solid rgba(97,192,205,0.4);
+    border-radius: 10px;
+    color: #61c0cd;
+    font-size: 14px;
+    font-weight: 600;
+    text-decoration: none;
+    transition: all 0.2s ease;
+}
+
+    .error-btn:hover {
+        background: rgba(97,192,205,0.1);
+        border-color: #61c0cd;
+        transform: translateY(-2px);
+    }
+
+@keyframes errorShake {
+    from {
+        transform: translateX(-2px) translateY(0px);
+    }
+
+    to {
+        transform: translateX(2px) translateY(-8px);
+    }
+}
+
+@keyframes smokeDrift {
+    0% {
+        opacity: 0.4;
+        transform: translateY(0) scale(1);
+    }
+
+    100% {
+        opacity: 0;
+        transform: translateY(-20px) scale(1.5);
+    }
+}
+
+/* =============================================
+   TOASTS
+   ============================================= */
+.toast {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 16px;
+    border-radius: 12px;
+    font-size: 13px;
+    font-weight: 500;
+    min-width: 280px;
+    max-width: 380px;
+    pointer-events: all;
+    backdrop-filter: blur(12px);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+    opacity: 0;
+    transform: translateX(20px);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.toast-visible {
+    opacity: 1;
+    transform: translateX(0);
+}
+
+.toast-hiding {
+    opacity: 0;
+    transform: translateX(20px);
+}
+
+.toast-error {
+    background: rgba(180, 40, 40, 0.92);
+    border: 1px solid rgba(255, 100, 100, 0.5);
+    color: #ffffff;
+}
+
+.toast-success {
+    background: rgba(20, 100, 90, 0.92);
+    border: 1px solid rgba(97, 192, 205, 0.5);
+    color: #ffffff;
+}
+
+.toast-warning {
+    background: rgba(160, 100, 0, 0.92);
+    border: 1px solid rgba(240, 165, 0, 0.5);
+    color: #ffffff;
+}
+
+.toast-icon {
+    font-size: 14px;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+.toast-message {
+    flex: 1;
+    line-height: 1.4;
+}
+
+.toast-close {
+    background: none;
+    border: none;
+    color: inherit;
+    opacity: 0.5;
+    cursor: pointer;
+    font-size: 12px;
+    padding: 0;
+    flex-shrink: 0;
+    transition: opacity 0.2s;
+}
+
+    .toast-close:hover {
+        opacity: 1;
+    }

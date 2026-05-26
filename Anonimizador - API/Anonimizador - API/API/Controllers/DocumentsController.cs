@@ -3,6 +3,7 @@ using Anonimizador___API.Application.DTOs.Documents;
 using Anonimizador___API.Interfaces.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Anonimizador___API.API.Controllers
 {
@@ -13,6 +14,7 @@ namespace Anonimizador___API.API.Controllers
     [ApiController]
     [Route("api/documents")]
     [Authorize]
+    [EnableRateLimiting("documents")]
     public class DocumentsController : ControllerBase
     {
         private readonly IDocumentService _service;

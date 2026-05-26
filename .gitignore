@@ -49,6 +49,7 @@ web_trace.log
 storage/
 debug_log.txt
 error_log.txt
+logs/
 
 # =============================================
 # VISUAL STUDIO

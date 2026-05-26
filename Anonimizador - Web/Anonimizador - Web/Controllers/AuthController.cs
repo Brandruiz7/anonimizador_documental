@@ -74,10 +74,16 @@ namespace Anonimizador___Web.Controllers
                     username = model.Username,
                     password = model.Password
                 });
-
+                
                 var response = await client.PostAsync(
                     $"{apiUrl}/api/auth/login",
                     new StringContent(body, Encoding.UTF8, "application/json"));
+
+                if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+                {
+                    ModelState.AddModelError("", "Demasiados intentos. Esperá 1 minuto antes de intentar de nuevo.");
+                    return View(model);
+                }
 
                 if (!response.IsSuccessStatusCode)
                 {

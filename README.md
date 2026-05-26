@@ -270,6 +270,9 @@ Redacción basada en imagen: el PDF se renderiza a 250 DPI, se aplican rectángu
 - Roles: `Admin`, `Operator`
 - Correlation ID en cada request para trazabilidad
 - Middleware global de manejo de errores con detalle solo en Development
+- Rate limiting por IP: 10 intentos/min en login, 30 requests/min en documentos
+- Páginas de error personalizadas (404, 403, 500)
+- Logs estructurados con Serilog (consola + archivo rotativo diario)
 
 ---
 
@@ -313,6 +316,46 @@ Usar `appsettings.example.json` como referencia:
   }
 }
 ```
+
+## 🔐 Variables de entorno (Producción)
+
+En producción los secretos se configuran como variables de entorno
+en lugar del `appsettings.json`. .NET lee ambas automáticamente,
+dando prioridad a las variables de entorno.
+
+La convención es reemplazar `:` por `__` (doble guion bajo):
+
+### API
+
+| Variable de entorno | Descripción |
+|---|---|
+| `ConnectionStrings__DefaultConnection` | Cadena de conexión SQL Server |
+| `Jwt__Key` | Clave secreta JWT (mín. 32 caracteres) |
+| `Jwt__Issuer` | Issuer del token |
+| `Jwt__Audience` | Audience del token |
+| `Jwt__ExpirationHours` | Duración del token en horas |
+| `Ollama__BaseUrl` | URL de Ollama |
+| `Ollama__Model` | Modelo a usar (ej. mistral) |
+| `RateLimiting__Login__PermitLimit` | Intentos de login por minuto |
+| `RateLimiting__Documents__PermitLimit` | Requests de documentos por minuto |
+
+### Web
+
+| Variable de entorno | Descripción |
+|---|---|
+| `ApiSettings__BaseUrl` | URL base de la API |
+
+### Ejemplo en Windows (IIS / servidor)
+\```
+setx Jwt__Key "tu_clave_secreta_de_produccion" /M
+setx ConnectionStrings__DefaultConnection "Server=prod-server;..." /M
+\```
+
+### Ejemplo en Linux / Docker
+\```bash
+export Jwt__Key="tu_clave_secreta_de_produccion"
+export ConnectionStrings__DefaultConnection="Server=prod-server;..."
+\```
 
 ---
 

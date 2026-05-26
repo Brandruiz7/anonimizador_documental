@@ -6,8 +6,6 @@
 
     <h1 class="page-title">Anonimización de Documentos</h1>
 
-    <div id="alertContainer"></div>
-
     <!-- INDICADOR DE PASOS -->
     <div class="wizard-steps">
         <div class="wizard-step active" id="step-indicator-1">
@@ -121,7 +119,7 @@
             <button type="button" class="btn-back" onclick="goToStep1()">
                 ← Atrás
             </button>
-            <button type="button" class="btn-next" onclick="processManual()">
+            <button type="button" class="btn-next" id="btn-process-manual" onclick="processManual()">
                 Anonimizar documento
             </button>
         </div>
@@ -272,8 +270,32 @@
     </div>
 </div>
 
+<div id="toastContainer" style="
+    position: fixed;
+    top: 24px;
+    right: 24px;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    pointer-events: none;
+"></div>
+
 @section Scripts {
     <script>
+        // =============================================
+        // UTILIDAD — ESTADO DE CARGA EN BOTONES
+        // =============================================
+        function setLoading(btnId, isLoading, loadingText = 'Procesando...') {
+            const btn = document.getElementById(btnId);
+            if (!btn) return;
+            btn.disabled = isLoading;
+            btn.dataset.originalText = btn.dataset.originalText || btn.innerHTML;
+            btn.innerHTML = isLoading
+                ? `<span class="btn-spinner"></span>${loadingText}`
+                : btn.dataset.originalText;
+        }
+
         // =============================================
         // ESTADO GLOBAL
         // =============================================
@@ -533,6 +555,14 @@
             .addEventListener('click', addPerson);
 
         // =============================================
+        // FORMULARIO MANUAL — VALIDACIÓN
+        // =============================================
+        function hasAtLeastOneField(card) {
+            return Array.from(card.querySelectorAll('input'))
+                .some(input => input.value.trim() !== '');
+        }
+
+        // =============================================
         // MODO MANUAL — PROCESAR
         // =============================================
         async function processManual() {
@@ -544,23 +574,32 @@
                 return;
             }
 
+            const alguienTieneDatos = Array.from(cards).some(hasAtLeastOneField);
+            if (!alguienTieneDatos) {
+                showAlert('Completá al menos un campo en una de las personas.', 'error');
+                return;
+            }
+
             const formData = new FormData();
             formData.append('documento', fileInput.files[0]);
 
-            // Datos generales del documento
             const caseNumber   = document.getElementById('CaseNumber')?.value   || '';
             const officeNumber = document.getElementById('OfficeNumber')?.value || '';
             if (caseNumber)   formData.append('GeneralData.CaseNumber',   caseNumber);
             if (officeNumber) formData.append('GeneralData.OfficeNumber', officeNumber);
 
-            // Personas
             cards.forEach(card => {
                 card.querySelectorAll('input').forEach(input => {
                     formData.append(input.name, input.value);
                 });
             });
 
-            await submitAndDownload(formData, fileInput.files[0].name);
+            setLoading('btn-process-manual', true, 'Anonimizando...');
+            try {
+                await submitAndDownload(formData, fileInput.files[0].name);
+            } finally {
+                setLoading('btn-process-manual', false);
+            }
         }
 
         // =============================================
@@ -948,7 +987,7 @@
             const personIndexes = Object.keys(personMap);
 
             if (personIndexes.length === 0 && !caseNumber && !officeNumber) {
-                showAlert('No hay datos para anonimizar.', 'error');
+                showAlert('No hay datos para anonimizar. Revisá los campos detectados.', 'error');
                 return;
             }
 
@@ -974,7 +1013,12 @@
                     formData.append(`Persons[${formIdx}].PhoneVariations[${vi}]`, v));
             });
 
-            await submitAndDownload(formData, fileInput.files[0].name);
+            setLoading('btn-process-ai', true, 'Anonimizando...');
+            try {
+                await submitAndDownload(formData, fileInput.files[0].name);
+            } finally {
+                setLoading('btn-process-ai', false);
+            }
         }
 
         // =============================================
@@ -990,8 +1034,16 @@
                 });
 
                 if (!response.ok) {
-                    const errorText = await response.text();
-                    showAlert('Error al procesar: ' + errorText, 'error');
+                    // Intentar extraer el mensaje de la API
+                    let errorMsg = 'Error al procesar el documento.';
+                    try {
+                        const errorText = await response.text();
+                        const errorJson = JSON.parse(errorText);
+                        errorMsg = errorJson.message ?? errorMsg;
+                    } catch {
+                        // si no es JSON, usar texto plano
+                    }
+                    showAlert(errorMsg, 'error');
                     return;
                 }
 
@@ -1050,11 +1102,37 @@
         // =============================================
         // UTILIDADES
         // =============================================
-        function showAlert(message, type) {
-            const container = document.getElementById('alertContainer');
-            container.innerHTML =
-                `<div class="alert alert-${type}">${message}</div>`;
-            container.scrollIntoView({ behavior: 'smooth' });
+        function showAlert(message, type, duration = 4000) {
+            const container = document.getElementById('toastContainer');
+            const id        = 'toast-' + Date.now();
+
+            const icons = { error: '✕', success: '✓', warning: '⚠' };
+            const icon  = icons[type] || 'ℹ';
+
+            const toast = document.createElement('div');
+            toast.id        = id;
+            toast.className = `toast toast-${type}`;
+            toast.innerHTML = `
+                <span class="toast-icon">${icon}</span>
+                <span class="toast-message">${message}</span>
+                <button class="toast-close" onclick="removeToast('${id}')">✕</button>
+            `;
+
+            container.appendChild(toast);
+
+            // Entrada
+            requestAnimationFrame(() => toast.classList.add('toast-visible'));
+
+            // Auto-cierre
+            setTimeout(() => removeToast(id), duration);
+        }
+
+        function removeToast(id) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.classList.remove('toast-visible');
+            el.classList.add('toast-hiding');
+            setTimeout(() => el.remove(), 400);
         }
     </script>
 }

@@ -1,6 +1,7 @@
 ﻿using Anonimizador___API.Application.DTOs.Auth;
 using Anonimizador___API.Interfaces.Services;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Anonimizador___API.API.Controllers
 {
@@ -30,6 +31,7 @@ namespace Anonimizador___API.API.Controllers
         /// <response code="200">Login exitoso.</response>
         /// <response code="401">Credenciales inválidas.</response>
         [HttpPost("login")]
+        [EnableRateLimiting("login")]
         public async Task<IActionResult> Login([FromBody] LoginRequestDto request)
         {
             var response = await _authService.LoginAsync(request);

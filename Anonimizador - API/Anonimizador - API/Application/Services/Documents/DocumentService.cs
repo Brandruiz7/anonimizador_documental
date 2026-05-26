@@ -115,7 +115,7 @@ namespace Anonimizador___API.Application.Services.Documents
 
                 // 6. Construir targets de anonimización
                 if (request.Persons == null || request.Persons.Count == 0)
-                    throw new Exception("Debe proporcionar al menos una persona.");
+                    throw new ArgumentException("Debe proporcionar al menos una persona.");
 
                 var targets = new List<AnonymizationTargetDto>();
 
@@ -198,7 +198,7 @@ namespace Anonimizador___API.Application.Services.Documents
                 }
 
                 if (targets.Count == 0)
-                    throw new Exception("No se proporcionaron datos válidos para anonimizar.");
+                    throw new ArgumentException("No se proporcionaron datos válidos para anonimizar.");
 
                 // 7. Seleccionar procesador y anonimizar
                 workStream.Position = 0;

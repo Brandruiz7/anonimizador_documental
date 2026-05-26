@@ -15,6 +15,36 @@
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/login.css" asp-append-version="true" />
 </head>
+<script>
+    document.querySelector('form').addEventListener('submit', function () {
+        const btn = this.querySelector('button[type="submit"]');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="btn-spinner"></span>Iniciando sesión...';
+    });
+
+    // Bloqueo visual si el servidor devolvió error de rate limit
+    window.addEventListener('DOMContentLoaded', () => {
+        const errorMsg = document.querySelector('.validation-summary-errors, [class*="error"]')?.textContent || '';
+        if (!errorMsg.includes('Demasiados intentos')) return;
+
+        const fields  = document.querySelectorAll('input, button');
+        const btn     = document.querySelector('button[type="submit"]');
+        let seconds   = 30;
+
+        fields.forEach(f => f.disabled = true);
+
+        const interval = setInterval(() => {
+            btn.innerHTML = `Esperá ${seconds}s para reintentar`;
+            seconds--;
+
+            if (seconds < 0) {
+                clearInterval(interval);
+                fields.forEach(f => f.disabled = false);
+                btn.innerHTML = 'Iniciar sesión →';
+            }
+        }, 1000);
+    });
+</script>
 <body>
     <div class="bg-mesh"></div>
     <div class="bg-grid"></div>
@@ -25,7 +55,6 @@
                 <img src="~/images/Logotipo-CGR-blanco-transp.png"
                      alt="CGR"
                      class="login-logo" />
-                <p class="login-institution">Contraloría General de la República</p>
                 <h1 class="login-title">
                     Anonimizador de <span>Documentos</span>
                 </h1>
