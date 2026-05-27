@@ -147,6 +147,7 @@ builder.Services.AddScoped<IDocumentProcessor, WordDocumentProcessor>();
 builder.Services.AddScoped<IDocumentProcessor, PdfDocumentProcessor>();
 
 // IA — Singleton porque HttpClient interno se reutiliza entre requests
+// builder.Services.AddSingleton<GeminiService>();
 builder.Services.AddSingleton<OllamaService>();
 
 // Repositorios

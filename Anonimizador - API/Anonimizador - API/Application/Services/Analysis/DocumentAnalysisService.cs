@@ -16,6 +16,13 @@ namespace Anonimizador___API.Application.Services.Analysis
     /// </summary>
     public class DocumentAnalysisService : IDocumentAnalysisService
     {
+        // =============================================
+        // MOTOR DE IA — CAMBIAR SEGÚN EL ENTORNO
+        // Para usar Ollama (local): descomentar OllamaService
+        // Para usar Gemini (nube):  descomentar GeminiService
+        // =============================================
+
+        // private readonly GeminiService _gemini;
         private readonly OllamaService _ollama;
         private readonly ILogger<DocumentAnalysisService> _logger;
 
@@ -23,9 +30,11 @@ namespace Anonimizador___API.Application.Services.Analysis
         /// Inicializa el servicio con sus dependencias.
         /// </summary>
         public DocumentAnalysisService(
+            // GeminiService gemini,      
             OllamaService ollama,
             ILogger<DocumentAnalysisService> logger)
         {
+            // _gemini = gemini;  
             _ollama = ollama;
             _logger = logger;
         }
@@ -216,6 +225,7 @@ namespace Anonimizador___API.Application.Services.Analysis
 
             try
             {
+                //var response = await _gemini.GenerateAsync(prompt);
                 var response = await _ollama.GenerateAsync(prompt);
                 var result = ParseStructuredResponse(response);
                 return MergePersons(result);
