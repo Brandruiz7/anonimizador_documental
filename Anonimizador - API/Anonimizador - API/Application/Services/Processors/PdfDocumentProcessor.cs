@@ -111,17 +111,20 @@ namespace Anonimizador___API.Application.Services.Processors
                         using var textPaint = new SKPaint
                         {
                             Color = new SKColor(0x36, 0x49, 0x9b),
-                            TextSize = fontSize,
-                            Typeface = typeface,
-                            IsAntialias = true,
-                            TextAlign = SKTextAlign.Center,
-                            FakeBoldText = true
+                            IsAntialias = true
+                        };
+
+                        using var font = new SKFont(typeface, fontSize)
+                        {
+                            Embolden = true
                         };
 
                         canvas.DrawText(
                             redaction.ReplacementText,
                             rect.MidX,
                             rect.MidY + (fontSize / 3f),
+                            SKTextAlign.Center,
+                            font,
                             textPaint);
                     }
 
