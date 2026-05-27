@@ -85,7 +85,7 @@ HttpClient → API REST
 |---|---|
 | API | .NET 8, ASP.NET Core Web API |
 | Frontend | .NET 8, ASP.NET Core MVC, Razor |
-| Base de datos | SQL Server |
+| Base de datos | Oracle Database |
 | ORM | Dapper |
 | Documentos Word | OpenXML SDK |
 | Documentos PDF | PdfPig, PdfSharp, PDFtoImage, SkiaSharp |
@@ -281,7 +281,7 @@ Redacción basada en imagen: el PDF se renderiza a 250 DPI, se aplican rectángu
 ### Requisitos
 
 - .NET 8 SDK
-- SQL Server
+- SQL Server o Oracle XE 21c (ver sección Motores de base de datos)
 - Ollama con Mistral instalado (`ollama pull mistral`)
 
 ### API — `appsettings.json`
@@ -290,20 +290,41 @@ Usar `appsettings.example.json` como referencia:
 
 ```json
 {
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
   "ConnectionStrings": {
-    "DefaultConnection": "Server=.;Database=DocumentAnonymizerDB;Trusted_Connection=True;"
+    "DefaultConnection": "User Id=anonimizador;Password=YOUR_PASSWORD;Data Source=localhost:1521/XEPDB1;"
   },
   "Jwt": {
     "Key": "YOUR_SECRET_KEY_MIN_32_CHARS",
-    "Issuer": "DocumentAnonymizer",
-    "Audience": "DocumentAnonymizerUsers",
+    "Issuer": "YOUR_ISSUER",
+    "Audience": "YOUR_AUDIENCE",
     "ExpirationHours": "8"
   },
   "Ollama": {
-    "BaseUrl": "http://127.0.0.1:11434",
-    "Model": "mistral",
+    "BaseUrl": "YOUR_OLLAMA_URL",
+    "Model": "YOUR_MODEL",
     "TimeoutSeconds": "120"
-  }
+  },
+  "RateLimiting": {
+    "Login": {
+      "PermitLimit": 10,
+      "WindowMinutes": 1
+    },
+    "Documents": {
+      "PermitLimit": 30,
+      "WindowMinutes": 1
+    }
+  },
+  "Serilog": {
+    "MinimumLevel": "Information",
+    "RetainedFileDays": 30
+  },
+  "AllowedHosts": "*"
 }
 ```
 
@@ -311,6 +332,13 @@ Usar `appsettings.example.json` como referencia:
 
 ```json
 {
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+  "AllowedHosts": "*",
   "ApiSettings": {
     "BaseUrl": "https://localhost:YOUR_API_PORT"
   }
@@ -407,6 +435,182 @@ Cada documento genera registros en:
 - `DOCUMENTS` — metadata y estado del proceso
 - `DOCUMENT_VERSIONS` — versión anonimizada con hash SHA256
 - `ANONYMIZED_FIELDS` — cada campo reemplazado con valor original, etiqueta y método de detección
+
+---
+
+## 🗄️ Motores de base de datos soportados
+
+El sistema soporta dos motores de base de datos. El código C# es el mismo para ambos —
+solo cambian la cadena de conexión, el paquete NuGet, y `DbConnectionFactory.cs`.
+
+---
+
+### Opción A — SQL Server
+
+#### Requisitos
+- SQL Server 2019 o superior (Express, Developer o licenciado)
+- SQL Server Management Studio (SSMS) opcional
+
+#### 1. Ejecutar el script base
+Abrir SSMS y ejecutar en orden:
+```
+DB/DocumentAnonymizerDB.sql
+DB/Migrations/001_AddFullNameToUsers.sql
+DB/Migrations/002_ExpandAnonymizationFields.sql
+```
+
+#### 2. Configurar la cadena de conexión
+En `appsettings.json` de la API:
+```json
+"ConnectionStrings": {
+  "DefaultConnection": "Server=.;Database=DocumentAnonymizerDB;Trusted_Connection=True;"
+}
+```
+
+#### 3. Paquete NuGet requerido
+```
+Microsoft.Data.SqlClient
+```
+
+#### 4. `DbConnectionFactory.cs`
+```csharp
+using Microsoft.Data.SqlClient;
+
+public IDbConnection CreateConnection()
+{
+    var connectionString = _config.GetConnectionString("DefaultConnection");
+    return new SqlConnection(connectionString);
+}
+```
+
+#### 5. Repositorios
+Usar parámetros anónimos estándar de Dapper — sin `OracleDynamicParameters`:
+```csharp
+return await connection.ExecuteScalarAsync<int>(
+    "SP_DOCUMENT_PROCESS_INSERT",
+    new { FileName = fileName, ContentType = contentType, ... },
+    commandType: CommandType.StoredProcedure);
+```
+
+---
+
+### Opción B — Oracle XE 21c (recomendada para la institución)
+
+Oracle es la opción recomendada para despliegue institucional dado el contrato
+existente con Oracle. Oracle XE 21c es gratuito para desarrollo y producción
+con límites de hardware (2 CPUs, 2 GB RAM para la BD, 12 GB de datos).
+
+#### Requisitos
+- Oracle XE 21c — https://www.oracle.com/database/technologies/xe-downloads.html
+- SQL Developer (opcional) — https://www.oracle.com/tools/downloads/sqldev-downloads.html
+
+#### 1. Crear el esquema
+Conectarse como `sysdba` y ejecutar:
+```sql
+ALTER SESSION SET CONTAINER = XEPDB1;
+CREATE USER anonimizador IDENTIFIED BY "TuPassword123";
+GRANT CONNECT, RESOURCE TO anonimizador;
+GRANT UNLIMITED TABLESPACE TO anonimizador;
+```
+
+#### 2. Configurar el listener
+Si `XEPDB1` no aparece en el listener, abrir CMD como administrador y ejecutar:
+```cmd
+sqlplus / as sysdba
+```
+Dentro de SQL*Plus:
+```sql
+ALTER SYSTEM SET LOCAL_LISTENER = '(ADDRESS=(PROTOCOL=TCP)(HOST=localhost)(PORT=1521))' SCOPE=BOTH;
+ALTER SYSTEM REGISTER;
+EXIT;
+```
+Reiniciar el listener:
+```cmd
+lsnrctl stop
+lsnrctl start
+```
+
+#### 3. Ejecutar el script Oracle
+En SQL Developer conectado como `anonimizador@XEPDB1`, ejecutar con F5:
+```
+DB/DocumentAnonymizerDB_Oracle.sql
+```
+> ⚠️ Antes de ejecutar, reemplazar `REEMPLAZAR_CON_HASH_BCRYPT` con el hash real.
+> Generarlo con: `GET /api/auth/generate-hash?password=Admin123!`
+
+#### 4. Configurar la cadena de conexión
+En `appsettings.json` de la API:
+```json
+"ConnectionStrings": {
+  "DefaultConnection": "User Id=anonimizador;Password=TuPassword;Data Source=localhost:1521/XEPDB1;"
+}
+```
+
+#### 5. Paquete NuGet requerido
+```
+Oracle.ManagedDataAccess.Core
+```
+
+#### 6. `DbConnectionFactory.cs`
+```csharp
+using Oracle.ManagedDataAccess.Client;
+
+public IDbConnection CreateConnection()
+{
+    var connectionString = _config.GetConnectionString("DefaultConnection");
+    return new OracleConnection(connectionString);
+}
+```
+
+#### 7. Repositorios
+Oracle requiere `OracleDynamicParameters` (incluido en `Infrastructure/Data/`) 
+en lugar de los objetos anónimos de Dapper, porque Oracle tipifica los parámetros 
+explícitamente y retorna filas mediante `SYS_REFCURSOR` en lugar de `SELECT` directo:
+```csharp
+var p = new OracleDynamicParameters();
+p.AddInput("p_FileName",   fileName);
+p.AddInput("p_FileSizeKB", fileSizeKb, OracleDbType.Int64);
+p.AddOutput("p_DocumentId", OracleDbType.Int32);
+
+await connection.ExecuteAsync("SP_DOCUMENT_PROCESS_INSERT", p,
+    commandType: CommandType.StoredProcedure);
+
+return p.Get<int>("p_DocumentId");
+```
+
+---
+
+### Diferencias clave entre SQL Server y Oracle
+
+| Concepto | SQL Server | Oracle XE |
+|---|---|---|
+| Contenedor | Base de datos (`USE DocumentAnonymizerDB`) | Esquema (`anonimizador@XEPDB1`) |
+| Auto-increment | `IDENTITY(1,1)` | Secuencias + Triggers |
+| Fecha actual | `SYSDATETIME()` | `SYSTIMESTAMP` |
+| Texto largo | `NVARCHAR(MAX)` | `CLOB` |
+| Retorno de filas en SP | `SELECT` directo | `SYS_REFCURSOR` OUT |
+| Parámetros OUT | `ExecuteScalarAsync` con Dapper | `OracleDynamicParameters` |
+| Tipo booleano | `BIT` | `NUMBER(1)` |
+| Scripts BD | `DB/DocumentAnonymizerDB.sql` | `DB/DocumentAnonymizerDB_Oracle.sql` |
+| Paquete NuGet | `Microsoft.Data.SqlClient` | `Oracle.ManagedDataAccess.Core` |
+| Conexión Dapper | `SqlConnection` | `OracleConnection` |
+
+---
+
+### Archivos a modificar al cambiar de motor
+
+Si se necesita revertir a SQL Server, los únicos archivos que requieren ajuste son:
+
+| Archivo | Cambio requerido |
+|---|---|
+| `appsettings.json` (API) | Cambiar cadena de conexión (ver Opción A) |
+| `Infrastructure/Data/DbConnectionFactory.cs` | Reemplazar `OracleConnection` por `SqlConnection` |
+| `Infrastructure/Repositories/DocumentRepository.cs` | Reemplazar `OracleDynamicParameters` por objetos anónimos Dapper |
+| `Infrastructure/Repositories/UserRepository.cs` | Reemplazar `OracleDynamicParameters` por objetos anónimos Dapper |
+
+> Las versiones originales para SQL Server están disponibles como descarga
+> en el archivo `DB/SQL Server/SqlServer_CSharp_Files.zip` del repositorio,
+> o en los releases del proyecto bajo el tag `v1.0-sqlserver`.
 
 ---
 

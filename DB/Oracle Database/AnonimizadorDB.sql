@@ -1,0 +1,503 @@
+/*******************************************************************************
+ Script     : DocumentAnonymizerDB_Oracle.sql
+ Descripción: Script base del sistema de anonimización de documentos
+              adaptado para Oracle XE 21c
+ Autor      : Ruiz
+ Fecha      : 2026
+
+ INSTRUCCIONES DE EJECUCIÓN:
+ 1. Conectarse en SQL Developer como: anonimizador / TuPassword@XEPDB1
+ 2. Ejecutar este script completo (F5)
+*******************************************************************************/
+
+-- =============================================
+-- LIMPIEZA SEGURA — PROCEDURES primero
+-- =============================================
+
+BEGIN EXECUTE IMMEDIATE 'DROP PROCEDURE SP_DOCUMENT_PROCESS_INSERT';        EXCEPTION WHEN OTHERS THEN NULL; END;
+/
+BEGIN EXECUTE IMMEDIATE 'DROP PROCEDURE SP_DOCUMENT_VERSION_INSERT';        EXCEPTION WHEN OTHERS THEN NULL; END;
+/
+BEGIN EXECUTE IMMEDIATE 'DROP PROCEDURE SP_ANONYMIZED_FIELD_INSERT';        EXCEPTION WHEN OTHERS THEN NULL; END;
+/
+BEGIN EXECUTE IMMEDIATE 'DROP PROCEDURE SP_DOCUMENT_PROCESS_UPDATE_STATUS'; EXCEPTION WHEN OTHERS THEN NULL; END;
+/
+BEGIN EXECUTE IMMEDIATE 'DROP PROCEDURE SP_USER_GET_BY_USERNAME';           EXCEPTION WHEN OTHERS THEN NULL; END;
+/
+BEGIN EXECUTE IMMEDIATE 'DROP PROCEDURE SP_DOCUMENT_GET_ALL';               EXCEPTION WHEN OTHERS THEN NULL; END;
+/
+BEGIN EXECUTE IMMEDIATE 'DROP PROCEDURE SP_DOCUMENT_GET_FULL';              EXCEPTION WHEN OTHERS THEN NULL; END;
+/
+BEGIN EXECUTE IMMEDIATE 'DROP PROCEDURE SP_DOCUMENT_GET_BY_HASH';          EXCEPTION WHEN OTHERS THEN NULL; END;
+/
+BEGIN EXECUTE IMMEDIATE 'DROP PROCEDURE SP_METRICS_SUMMARY';               EXCEPTION WHEN OTHERS THEN NULL; END;
+/
+BEGIN EXECUTE IMMEDIATE 'DROP PROCEDURE SP_METRICS_DOCUMENTS_BY_STATUS';   EXCEPTION WHEN OTHERS THEN NULL; END;
+/
+BEGIN EXECUTE IMMEDIATE 'DROP PROCEDURE SP_METRICS_DOCUMENTS_BY_MONTH';    EXCEPTION WHEN OTHERS THEN NULL; END;
+/
+BEGIN EXECUTE IMMEDIATE 'DROP PROCEDURE SP_METRICS_DOCUMENTS_BY_USER';     EXCEPTION WHEN OTHERS THEN NULL; END;
+/
+
+-- =============================================
+-- LIMPIEZA SEGURA — TRIGGERS
+-- =============================================
+
+BEGIN EXECUTE IMMEDIATE 'DROP TRIGGER TRG_DOCUMENTS_ID';          EXCEPTION WHEN OTHERS THEN NULL; END;
+/
+BEGIN EXECUTE IMMEDIATE 'DROP TRIGGER TRG_DOCUMENT_VERSIONS_ID';  EXCEPTION WHEN OTHERS THEN NULL; END;
+/
+BEGIN EXECUTE IMMEDIATE 'DROP TRIGGER TRG_ANONYMIZED_FIELDS_ID';  EXCEPTION WHEN OTHERS THEN NULL; END;
+/
+BEGIN EXECUTE IMMEDIATE 'DROP TRIGGER TRG_PROCESS_ERRORS_ID';     EXCEPTION WHEN OTHERS THEN NULL; END;
+/
+BEGIN EXECUTE IMMEDIATE 'DROP TRIGGER TRG_ROLES_ID';              EXCEPTION WHEN OTHERS THEN NULL; END;
+/
+BEGIN EXECUTE IMMEDIATE 'DROP TRIGGER TRG_USERS_ID';              EXCEPTION WHEN OTHERS THEN NULL; END;
+/
+
+-- =============================================
+-- LIMPIEZA SEGURA — TABLAS (hijo → padre)
+-- =============================================
+
+BEGIN EXECUTE IMMEDIATE 'DROP TABLE ANONYMIZED_FIELDS CASCADE CONSTRAINTS';  EXCEPTION WHEN OTHERS THEN NULL; END;
+/
+BEGIN EXECUTE IMMEDIATE 'DROP TABLE PROCESS_ERRORS CASCADE CONSTRAINTS';     EXCEPTION WHEN OTHERS THEN NULL; END;
+/
+BEGIN EXECUTE IMMEDIATE 'DROP TABLE DOCUMENT_VERSIONS CASCADE CONSTRAINTS';  EXCEPTION WHEN OTHERS THEN NULL; END;
+/
+BEGIN EXECUTE IMMEDIATE 'DROP TABLE DOCUMENTS CASCADE CONSTRAINTS';          EXCEPTION WHEN OTHERS THEN NULL; END;
+/
+BEGIN EXECUTE IMMEDIATE 'DROP TABLE USERS CASCADE CONSTRAINTS';              EXCEPTION WHEN OTHERS THEN NULL; END;
+/
+BEGIN EXECUTE IMMEDIATE 'DROP TABLE ROLES CASCADE CONSTRAINTS';              EXCEPTION WHEN OTHERS THEN NULL; END;
+/
+BEGIN EXECUTE IMMEDIATE 'DROP TABLE PROCESS_STATUS CASCADE CONSTRAINTS';     EXCEPTION WHEN OTHERS THEN NULL; END;
+/
+
+-- =============================================
+-- LIMPIEZA SEGURA — SECUENCIAS
+-- =============================================
+
+BEGIN EXECUTE IMMEDIATE 'DROP SEQUENCE SEQ_DOCUMENTS';          EXCEPTION WHEN OTHERS THEN NULL; END;
+/
+BEGIN EXECUTE IMMEDIATE 'DROP SEQUENCE SEQ_DOCUMENT_VERSIONS';  EXCEPTION WHEN OTHERS THEN NULL; END;
+/
+BEGIN EXECUTE IMMEDIATE 'DROP SEQUENCE SEQ_ANONYMIZED_FIELDS';  EXCEPTION WHEN OTHERS THEN NULL; END;
+/
+BEGIN EXECUTE IMMEDIATE 'DROP SEQUENCE SEQ_PROCESS_ERRORS';     EXCEPTION WHEN OTHERS THEN NULL; END;
+/
+BEGIN EXECUTE IMMEDIATE 'DROP SEQUENCE SEQ_ROLES';              EXCEPTION WHEN OTHERS THEN NULL; END;
+/
+BEGIN EXECUTE IMMEDIATE 'DROP SEQUENCE SEQ_USERS';              EXCEPTION WHEN OTHERS THEN NULL; END;
+/
+
+-- =============================================
+-- TABLAS
+-- =============================================
+
+CREATE TABLE PROCESS_STATUS (
+    StatusId   NUMBER(10)    NOT NULL,
+    Name       VARCHAR2(50) NOT NULL,
+    CONSTRAINT PK_PROCESS_STATUS PRIMARY KEY (StatusId),
+    CONSTRAINT UQ_PROCESS_STATUS_NAME UNIQUE (Name)
+);
+
+CREATE TABLE DOCUMENTS (
+    DocumentId       NUMBER(10)      NOT NULL,
+    OriginalFileName VARCHAR2(260)  NOT NULL,
+    ContentType      VARCHAR2(100)  NOT NULL,
+    FileSizeKB       NUMBER(19)      NOT NULL,
+    FileHash         VARCHAR2(64)   NOT NULL,
+    UploadedBy       VARCHAR2(100)  NULL,
+    CurrentStatusId  NUMBER(10)      NOT NULL,
+    IsProcessed      NUMBER(1)       DEFAULT 0 NOT NULL,
+    CreatedAt        TIMESTAMP       DEFAULT SYSTIMESTAMP NOT NULL,
+    UpdatedAt        TIMESTAMP       DEFAULT SYSTIMESTAMP NOT NULL,
+    CONSTRAINT PK_DOCUMENTS PRIMARY KEY (DocumentId),
+    CONSTRAINT FK_DOCUMENTS_STATUS FOREIGN KEY (CurrentStatusId)
+        REFERENCES PROCESS_STATUS(StatusId)
+);
+
+CREATE TABLE DOCUMENT_VERSIONS (
+    VersionId   NUMBER(10)    NOT NULL,
+    DocumentId  NUMBER(10)    NOT NULL,
+    VersionType VARCHAR2(50) NOT NULL,
+    FileHash    VARCHAR2(64) NOT NULL,
+    CreatedAt   TIMESTAMP     DEFAULT SYSTIMESTAMP NOT NULL,
+    CONSTRAINT PK_DOCUMENT_VERSIONS PRIMARY KEY (VersionId),
+    CONSTRAINT FK_VERSIONS_DOCUMENT FOREIGN KEY (DocumentId)
+        REFERENCES DOCUMENTS(DocumentId)
+);
+
+CREATE TABLE ANONYMIZED_FIELDS (
+    FieldId         NUMBER(10)     NOT NULL,
+    VersionId       NUMBER(10)     NOT NULL,
+    FieldType       VARCHAR2(100) NOT NULL,
+    OriginalValue   VARCHAR2(500) NOT NULL,
+    AnonymizedValue VARCHAR2(100) NOT NULL,
+    DetectionMethod VARCHAR2(50)  DEFAULT 'MANUAL' NOT NULL,
+    CreatedAt       TIMESTAMP      DEFAULT SYSTIMESTAMP NOT NULL,
+    CONSTRAINT PK_ANONYMIZED_FIELDS PRIMARY KEY (FieldId),
+    CONSTRAINT FK_FIELDS_VERSION FOREIGN KEY (VersionId)
+        REFERENCES DOCUMENT_VERSIONS(VersionId)
+);
+
+CREATE TABLE PROCESS_ERRORS (
+    ErrorId    NUMBER(10) NOT NULL,
+    DocumentId NUMBER(10) NULL,
+    Message    CLOB       NULL,
+    StackTrace CLOB       NULL,
+    CreatedAt  TIMESTAMP  DEFAULT SYSTIMESTAMP NOT NULL,
+    CONSTRAINT PK_PROCESS_ERRORS PRIMARY KEY (ErrorId),
+    CONSTRAINT FK_ERRORS_DOCUMENT FOREIGN KEY (DocumentId)
+        REFERENCES DOCUMENTS(DocumentId)
+);
+
+CREATE TABLE ROLES (
+    RoleId   NUMBER(10)    NOT NULL,
+    RoleName VARCHAR2(50) NOT NULL,
+    CONSTRAINT PK_ROLES PRIMARY KEY (RoleId),
+    CONSTRAINT UQ_ROLES_NAME UNIQUE (RoleName)
+);
+
+CREATE TABLE USERS (
+    UserId       NUMBER(10)     NOT NULL,
+    Username     VARCHAR2(100) NOT NULL,
+    PasswordHash VARCHAR2(256) NOT NULL,
+    FullName     VARCHAR2(200) NULL,
+    RoleId       NUMBER(10)     NOT NULL,
+    IsActive     NUMBER(1)      DEFAULT 1 NOT NULL,
+    CreatedAt    TIMESTAMP      DEFAULT SYSTIMESTAMP NOT NULL,
+    CONSTRAINT PK_USERS PRIMARY KEY (UserId),
+    CONSTRAINT UQ_USERS_USERNAME UNIQUE (Username),
+    CONSTRAINT FK_USERS_ROLES FOREIGN KEY (RoleId)
+        REFERENCES ROLES(RoleId)
+);
+
+-- =============================================
+-- SECUENCIAS
+-- =============================================
+
+CREATE SEQUENCE SEQ_DOCUMENTS         START WITH 1 INCREMENT BY 1 NOCACHE NOCYCLE;
+CREATE SEQUENCE SEQ_DOCUMENT_VERSIONS START WITH 1 INCREMENT BY 1 NOCACHE NOCYCLE;
+CREATE SEQUENCE SEQ_ANONYMIZED_FIELDS START WITH 1 INCREMENT BY 1 NOCACHE NOCYCLE;
+CREATE SEQUENCE SEQ_PROCESS_ERRORS    START WITH 1 INCREMENT BY 1 NOCACHE NOCYCLE;
+CREATE SEQUENCE SEQ_ROLES             START WITH 1 INCREMENT BY 1 NOCACHE NOCYCLE;
+CREATE SEQUENCE SEQ_USERS             START WITH 1 INCREMENT BY 1 NOCACHE NOCYCLE;
+
+-- =============================================
+-- TRIGGERS (auto-increment)
+-- =============================================
+
+CREATE OR REPLACE TRIGGER TRG_DOCUMENTS_ID
+    BEFORE INSERT ON DOCUMENTS FOR EACH ROW
+BEGIN
+    IF :NEW.DocumentId IS NULL THEN
+        SELECT SEQ_DOCUMENTS.NEXTVAL INTO :NEW.DocumentId FROM DUAL;
+    END IF;
+END;
+/
+
+CREATE OR REPLACE TRIGGER TRG_DOCUMENT_VERSIONS_ID
+    BEFORE INSERT ON DOCUMENT_VERSIONS FOR EACH ROW
+BEGIN
+    IF :NEW.VersionId IS NULL THEN
+        SELECT SEQ_DOCUMENT_VERSIONS.NEXTVAL INTO :NEW.VersionId FROM DUAL;
+    END IF;
+END;
+/
+
+CREATE OR REPLACE TRIGGER TRG_ANONYMIZED_FIELDS_ID
+    BEFORE INSERT ON ANONYMIZED_FIELDS FOR EACH ROW
+BEGIN
+    IF :NEW.FieldId IS NULL THEN
+        SELECT SEQ_ANONYMIZED_FIELDS.NEXTVAL INTO :NEW.FieldId FROM DUAL;
+    END IF;
+END;
+/
+
+CREATE OR REPLACE TRIGGER TRG_PROCESS_ERRORS_ID
+    BEFORE INSERT ON PROCESS_ERRORS FOR EACH ROW
+BEGIN
+    IF :NEW.ErrorId IS NULL THEN
+        SELECT SEQ_PROCESS_ERRORS.NEXTVAL INTO :NEW.ErrorId FROM DUAL;
+    END IF;
+END;
+/
+
+CREATE OR REPLACE TRIGGER TRG_ROLES_ID
+    BEFORE INSERT ON ROLES FOR EACH ROW
+BEGIN
+    IF :NEW.RoleId IS NULL THEN
+        SELECT SEQ_ROLES.NEXTVAL INTO :NEW.RoleId FROM DUAL;
+    END IF;
+END;
+/
+
+CREATE OR REPLACE TRIGGER TRG_USERS_ID
+    BEFORE INSERT ON USERS FOR EACH ROW
+BEGIN
+    IF :NEW.UserId IS NULL THEN
+        SELECT SEQ_USERS.NEXTVAL INTO :NEW.UserId FROM DUAL;
+    END IF;
+END;
+/
+
+-- =============================================
+-- ÍNDICES
+-- =============================================
+
+CREATE INDEX IX_DOCUMENTS_Status         ON DOCUMENTS         (CurrentStatusId);
+CREATE INDEX IX_DOCUMENTS_CreatedAt      ON DOCUMENTS         (CreatedAt DESC);
+CREATE INDEX IX_DOCUMENTS_Status_Created ON DOCUMENTS         (CurrentStatusId, CreatedAt DESC);
+CREATE INDEX IX_VERSIONS_DocumentId      ON DOCUMENT_VERSIONS (DocumentId);
+CREATE INDEX IX_FIELDS_VersionId         ON ANONYMIZED_FIELDS (VersionId);
+CREATE INDEX IX_FIELDS_Type              ON ANONYMIZED_FIELDS (FieldType);
+
+-- =============================================
+-- DATOS INICIALES
+-- =============================================
+
+INSERT INTO PROCESS_STATUS (StatusId, Name) VALUES (1, 'UPLOADED');
+INSERT INTO PROCESS_STATUS (StatusId, Name) VALUES (2, 'PROCESSING');
+INSERT INTO PROCESS_STATUS (StatusId, Name) VALUES (3, 'ANONYMIZED');
+INSERT INTO PROCESS_STATUS (StatusId, Name) VALUES (4, 'FAILED');
+
+INSERT INTO ROLES (RoleName) VALUES ('Admin');
+INSERT INTO ROLES (RoleName) VALUES ('Operator');
+
+-- ⚠️  REEMPLAZÁ el hash antes de ejecutar
+-- Generalo con: GET /api/auth/generate-hash?password=Admin123!
+INSERT INTO USERS (Username, PasswordHash, FullName, RoleId, IsActive)
+VALUES (
+    'admin',
+    '$2a$12$cnMg268Ym4KY.s7MlnlzyO8xujqYlMFOc78prb3q796Ldci/3wMxG',
+    'Brandon José Ruiz Miranda',
+    (SELECT RoleId FROM ROLES WHERE RoleName = 'Admin'),
+    1
+);
+
+COMMIT;
+
+-- =============================================
+-- STORED PROCEDURES
+-- =============================================
+
+CREATE OR REPLACE PROCEDURE SP_DOCUMENT_PROCESS_INSERT (
+    p_FileName    IN  VARCHAR2,
+    p_ContentType IN  VARCHAR2,
+    p_FileSizeKB  IN  NUMBER,
+    p_FileHash    IN  VARCHAR2,
+    p_UploadedBy  IN  VARCHAR2,
+    p_DocumentId  OUT NUMBER
+)
+AS
+BEGIN
+    INSERT INTO DOCUMENTS (
+        OriginalFileName, ContentType, FileSizeKB,
+        FileHash, UploadedBy, CurrentStatusId, IsProcessed
+    ) VALUES (
+        p_FileName, p_ContentType, p_FileSizeKB,
+        p_FileHash, p_UploadedBy, 2, 0
+    ) RETURNING DocumentId INTO p_DocumentId;
+END;
+/
+
+CREATE OR REPLACE PROCEDURE SP_DOCUMENT_VERSION_INSERT (
+    p_DocumentId  IN  NUMBER,
+    p_VersionType IN  VARCHAR2,
+    p_FileHash    IN  VARCHAR2,
+    p_VersionId   OUT NUMBER
+)
+AS
+BEGIN
+    INSERT INTO DOCUMENT_VERSIONS (DocumentId, VersionType, FileHash)
+    VALUES (p_DocumentId, p_VersionType, p_FileHash)
+    RETURNING VersionId INTO p_VersionId;
+END;
+/
+
+CREATE OR REPLACE PROCEDURE SP_ANONYMIZED_FIELD_INSERT (
+    p_VersionId       IN NUMBER,
+    p_FieldType       IN VARCHAR2,
+    p_OriginalValue   IN VARCHAR2,
+    p_AnonymizedValue IN VARCHAR2
+)
+AS
+BEGIN
+    INSERT INTO ANONYMIZED_FIELDS (
+        VersionId, FieldType, OriginalValue, AnonymizedValue
+    ) VALUES (
+        p_VersionId, p_FieldType, p_OriginalValue, p_AnonymizedValue
+    );
+END;
+/
+
+CREATE OR REPLACE PROCEDURE SP_DOCUMENT_PROCESS_UPDATE_STATUS (
+    p_DocumentId IN NUMBER,
+    p_StatusId   IN NUMBER
+)
+AS
+BEGIN
+    UPDATE DOCUMENTS
+    SET CurrentStatusId = p_StatusId,
+        IsProcessed     = CASE WHEN p_StatusId = 3 THEN 1 ELSE 0 END,
+        UpdatedAt       = SYSTIMESTAMP
+    WHERE DocumentId = p_DocumentId;
+END;
+/
+
+CREATE OR REPLACE PROCEDURE SP_USER_GET_BY_USERNAME (
+    p_Username  IN  VARCHAR2,
+    p_ResultSet OUT SYS_REFCURSOR
+)
+AS
+BEGIN
+    OPEN p_ResultSet FOR
+        SELECT
+            u.UserId,
+            u.Username,
+            u.PasswordHash,
+            u.IsActive,
+            u.FullName,
+            r.RoleName
+        FROM USERS u
+        INNER JOIN ROLES r ON u.RoleId = r.RoleId
+        WHERE u.Username = p_Username;
+END;
+/
+
+CREATE OR REPLACE PROCEDURE SP_DOCUMENT_GET_ALL (
+    p_ResultSet OUT SYS_REFCURSOR
+)
+AS
+BEGIN
+    OPEN p_ResultSet FOR
+        SELECT
+            d.DocumentId,
+            d.OriginalFileName,
+            d.ContentType,
+            d.FileSizeKB,
+            d.UploadedBy,
+            s.Name  AS Status,
+            d.CreatedAt,
+            d.UpdatedAt
+        FROM DOCUMENTS d
+        INNER JOIN PROCESS_STATUS s ON d.CurrentStatusId = s.StatusId
+        ORDER BY d.CreatedAt DESC;
+END;
+/
+
+CREATE OR REPLACE PROCEDURE SP_DOCUMENT_GET_FULL (
+    p_DocumentId IN  NUMBER,
+    p_Doc        OUT SYS_REFCURSOR,
+    p_Versions   OUT SYS_REFCURSOR,
+    p_Fields     OUT SYS_REFCURSOR
+)
+AS
+BEGIN
+    OPEN p_Doc FOR
+        SELECT d.*, s.Name AS StatusName
+        FROM DOCUMENTS d
+        INNER JOIN PROCESS_STATUS s ON d.CurrentStatusId = s.StatusId
+        WHERE d.DocumentId = p_DocumentId;
+
+    OPEN p_Versions FOR
+        SELECT * FROM DOCUMENT_VERSIONS
+        WHERE DocumentId = p_DocumentId
+        ORDER BY CreatedAt;
+
+    OPEN p_Fields FOR
+        SELECT f.*
+        FROM ANONYMIZED_FIELDS f
+        INNER JOIN DOCUMENT_VERSIONS v ON f.VersionId = v.VersionId
+        WHERE v.DocumentId = p_DocumentId
+        ORDER BY f.CreatedAt;
+END;
+/
+
+CREATE OR REPLACE PROCEDURE SP_DOCUMENT_GET_BY_HASH (
+    p_Hash      IN  VARCHAR2,
+    p_ResultSet OUT SYS_REFCURSOR
+)
+AS
+BEGIN
+    OPEN p_ResultSet FOR
+        SELECT d.*, s.Name AS StatusName
+        FROM DOCUMENTS d
+        INNER JOIN PROCESS_STATUS s ON d.CurrentStatusId = s.StatusId
+        WHERE d.FileHash = p_Hash;
+END;
+/
+
+CREATE OR REPLACE PROCEDURE SP_METRICS_SUMMARY (
+    p_ResultSet OUT SYS_REFCURSOR
+)
+AS
+BEGIN
+    OPEN p_ResultSet FOR
+        SELECT
+            COUNT(*)                                              AS TotalDocuments,
+            SUM(CASE WHEN CurrentStatusId = 3 THEN 1 ELSE 0 END) AS TotalAnonymized,
+            SUM(CASE WHEN CurrentStatusId = 4 THEN 1 ELSE 0 END) AS TotalFailed,
+            COALESCE(SUM(FileSizeKB), 0)                          AS TotalSizeKB
+        FROM DOCUMENTS;
+END;
+/
+
+CREATE OR REPLACE PROCEDURE SP_METRICS_DOCUMENTS_BY_STATUS (
+    p_ResultSet OUT SYS_REFCURSOR
+)
+AS
+BEGIN
+    OPEN p_ResultSet FOR
+        SELECT s.Name AS Status, COUNT(d.DocumentId) AS Total
+        FROM PROCESS_STATUS s
+        LEFT JOIN DOCUMENTS d ON d.CurrentStatusId = s.StatusId
+        GROUP BY s.Name
+        ORDER BY s.Name;
+END;
+/
+
+CREATE OR REPLACE PROCEDURE SP_METRICS_DOCUMENTS_BY_MONTH (
+    p_ResultSet OUT SYS_REFCURSOR
+)
+AS
+BEGIN
+    OPEN p_ResultSet FOR
+        SELECT
+            TO_CHAR(CreatedAt, 'YYYY-MM') AS Month,
+            COUNT(*)                       AS Total
+        FROM DOCUMENTS
+        GROUP BY TO_CHAR(CreatedAt, 'YYYY-MM')
+        ORDER BY Month DESC;
+END;
+/
+
+CREATE OR REPLACE PROCEDURE SP_METRICS_DOCUMENTS_BY_USER (
+    p_ResultSet OUT SYS_REFCURSOR
+)
+AS
+BEGIN
+    OPEN p_ResultSet FOR
+        SELECT
+            COALESCE(UploadedBy, 'Desconocido') AS Usuario,
+            COUNT(*)                             AS Total
+        FROM DOCUMENTS
+        GROUP BY UploadedBy
+        ORDER BY Total DESC;
+END;
+/
+
+COMMIT;
+
+-- =============================================
+-- VERIFICACIÓN FINAL
+-- =============================================
+SELECT 'PROCESS_STATUS'    AS Tabla, COUNT(*) AS Registros FROM PROCESS_STATUS  UNION ALL
+SELECT 'ROLES',                       COUNT(*)              FROM ROLES            UNION ALL
+SELECT 'USERS',                       COUNT(*)              FROM USERS            UNION ALL
+SELECT 'DOCUMENTS',                   COUNT(*)              FROM DOCUMENTS        UNION ALL
+SELECT 'DOCUMENT_VERSIONS',           COUNT(*)              FROM DOCUMENT_VERSIONS UNION ALL
+SELECT 'ANONYMIZED_FIELDS',           COUNT(*)              FROM ANONYMIZED_FIELDS;
