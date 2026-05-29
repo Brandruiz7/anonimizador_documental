@@ -9,7 +9,6 @@ using Anonimizador___API.Interfaces.Repositories;
 using Anonimizador___API.Interfaces.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Http.Features;
-using Microsoft.Data.SqlClient;
 using Microsoft.IdentityModel.Tokens;
 using System.Data;
 using System.Text;
@@ -154,8 +153,6 @@ builder.Services.AddSingleton<OllamaService>();
 builder.Services.AddScoped<IDocumentRepository, DocumentRepository>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<DbConnectionFactory>();
-builder.Services.AddScoped<IDbConnection>(sp =>
-    new SqlConnection(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 // Límites de tamaño para archivos (100 MB)
 builder.Services.Configure<FormOptions>(options =>

@@ -10,11 +10,16 @@ namespace Anonimizador___API.Infrastructure.Repositories
 {
     /// <summary>
     /// Repositorio de acceso a datos de documentos, versiones y auditoría.
-    /// Ejecuta procedimientos almacenados en Oracle mediante Dapper.
+    /// Ejecuta procedimientos almacenados en Oracle XE 21c mediante Dapper.
     ///
-    /// Nota: Oracle retorna conjuntos de resultados mediante SYS_REFCURSOR —
-    /// cada SP que devuelve filas requiere un parámetro OUT de tipo RefCursor.
-    /// Los IDs generados se obtienen mediante parámetros OUT escalares.
+    /// Particularidades de Oracle vs SQL Server:
+    /// - Los SPs retornan filas mediante SYS_REFCURSOR (parámetro OUT tipo RefCursor)
+    ///   en lugar de un SELECT directo como en SQL Server
+    /// - Los IDs generados se obtienen mediante parámetros OUT escalares (OracleDbType.Int32)
+    /// - Los parámetros deben tipificarse explícitamente con OracleDynamicParameters
+    ///   en lugar de los objetos anónimos estándar de Dapper
+    ///
+    /// Ver también: <see cref="OracleDynamicParameters"/> para el detalle de los helpers.
     /// </summary>
     public class DocumentRepository : IDocumentRepository
     {
@@ -29,7 +34,12 @@ namespace Anonimizador___API.Infrastructure.Repositories
         }
 
         /// <inheritdoc />
-        public async Task<int> InsertDocumentProcessAsync( string fileName, string contentType, long fileSizeKb, string hash, string uploadedBy)
+        public async Task<int> InsertDocumentProcessAsync(
+            string fileName,
+            string contentType,
+            long fileSizeKb,
+            string hash,
+            string uploadedBy)
         {
             using var connection = _factory.CreateConnection();
             connection.Open();
@@ -50,7 +60,10 @@ namespace Anonimizador___API.Infrastructure.Repositories
         }
 
         /// <inheritdoc />
-        public async Task<int> InsertDocumentVersionAsync( int documentId, string versionType, string fileHash)
+        public async Task<int> InsertDocumentVersionAsync(
+            int documentId,
+            string versionType,
+            string fileHash)
         {
             using var connection = _factory.CreateConnection();
             connection.Open();
@@ -69,7 +82,11 @@ namespace Anonimizador___API.Infrastructure.Repositories
         }
 
         /// <inheritdoc />
-        public async Task InsertAuditFieldAsync( int versionId, string fieldType, string originalValue, string anonymizedValue)
+        public async Task InsertAuditFieldAsync(
+            int versionId,
+            string fieldType,
+            string originalValue,
+            string anonymizedValue)
         {
             using var connection = _factory.CreateConnection();
             connection.Open();
@@ -117,31 +134,34 @@ namespace Anonimizador___API.Infrastructure.Repositories
         /// <inheritdoc />
         public async Task<MetricsResponseDto> GetMetricsAsync()
         {
+            // Cada SP de métricas requiere su propia instancia de OracleDynamicParameters
+            // y su propia llamada — Oracle no soporta múltiples result sets en un solo SP
+            // como SQL Server con WITH RESULT SETS
             using var connection = _factory.CreateConnection();
             connection.Open();
 
-            // Resumen general — total, anonimizados, fallidos, tamaño
+            // Resumen general — total, anonimizados, fallidos, tamaño acumulado
             var pSummary = new OracleDynamicParameters();
             pSummary.AddCursor("p_ResultSet");
             var summary = await connection.QueryFirstOrDefaultAsync<MetricsSummaryDto>(
                 "SP_METRICS_SUMMARY", pSummary,
                 commandType: CommandType.StoredProcedure);
 
-            // Documentos agrupados por mes
+            // Documentos agrupados por mes (formato YYYY-MM)
             var pMonth = new OracleDynamicParameters();
             pMonth.AddCursor("p_ResultSet");
             var byMonth = await connection.QueryAsync<DocumentsByMonthDto>(
                 "SP_METRICS_DOCUMENTS_BY_MONTH", pMonth,
                 commandType: CommandType.StoredProcedure);
 
-            // Documentos agrupados por estado
+            // Documentos agrupados por estado (UPLOADED, PROCESSING, ANONYMIZED, FAILED)
             var pStatus = new OracleDynamicParameters();
             pStatus.AddCursor("p_ResultSet");
             var byStatus = await connection.QueryAsync<DocumentsByStatusDto>(
                 "SP_METRICS_DOCUMENTS_BY_STATUS", pStatus,
                 commandType: CommandType.StoredProcedure);
 
-            // Documentos agrupados por usuario
+            // Documentos agrupados por usuario que los subió
             var pUser = new OracleDynamicParameters();
             pUser.AddCursor("p_ResultSet");
             var byUser = await connection.QueryAsync<DocumentsByUserDto>(

@@ -12,7 +12,11 @@ namespace Anonimizador___API.Application.Services.Analysis
 {
     /// <summary>
     /// Servicio híbrido de análisis de documentos.
-    /// Combina Regex (detección precisa) con IA mediante Ollama (detección semántica).
+    /// Combina detección precisa mediante Regex con detección semántica mediante IA.
+    ///
+    /// Motor de IA activo: Ollama/Mistral (local).
+    /// Para cambiar a Gemini (nube): ver comentarios en el constructor y ApplyAiDetectionAsync.
+    /// Ambos motores exponen el mismo método GenerateAsync() — el cambio es transparente.
     /// </summary>
     public class DocumentAnalysisService : IDocumentAnalysisService
     {
@@ -49,7 +53,9 @@ namespace Anonimizador___API.Application.Services.Analysis
             var text = await ExtractTextAsync(file);
 
             if (string.IsNullOrWhiteSpace(text))
-                throw new Exception("No se pudo extraer texto del documento.");
+                throw new InvalidOperationException(
+                    "No se pudo extraer texto del documento. " +
+                    "El archivo puede estar vacío, corrupto o ser una imagen sin OCR.");
 
             var regexResult = ApplyRegexDetection(text);
             var aiResult = await ApplyAiDetectionAsync(text, additionalContext);
@@ -81,7 +87,9 @@ namespace Anonimizador___API.Application.Services.Analysis
             {
                 ".docx" => ExtractTextFromDocx(bytes),
                 ".pdf" => ExtractTextFromPdf(bytes),
-                _ => throw new Exception($"Formato no soportado: {extension}")
+                _ => throw new ArgumentException(
+                               $"Formato no soportado para análisis: {extension}. " +
+                               "Solo se aceptan .docx y .pdf.")
             };
         }
 

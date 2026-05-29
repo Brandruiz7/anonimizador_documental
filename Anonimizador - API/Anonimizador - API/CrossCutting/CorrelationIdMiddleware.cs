@@ -1,9 +1,13 @@
 ﻿namespace Anonimizador___API.CrossCutting
 {
     /// <summary>
-    /// Middleware que asigna un ID único de correlación a cada request.
+    /// Middleware que asigna un ID único de correlación a cada request HTTP.
     /// Permite rastrear el flujo completo en los logs aunque haya múltiples requests simultáneos.
-    /// Si el cliente envía el header X-Correlation-ID se reutiliza; de lo contrario se genera uno nuevo.
+    ///
+    /// Comportamiento:
+    /// - Si el cliente envía el header X-Correlation-ID se reutiliza ese valor
+    /// - Si no lo envía se genera un GUID nuevo
+    /// - El ID se propaga en los items del contexto (para otros middlewares) y en el header de respuesta
     /// </summary>
     public class CorrelationIdMiddleware
     {
@@ -25,6 +29,8 @@
 
         /// <summary>
         /// Procesa el request asignando y propagando el ID de correlación.
+        /// El ID queda disponible en <c>context.Items["X-Correlation-ID"]</c>
+        /// para que otros middlewares y servicios lo incluyan en sus logs.
         /// </summary>
         public async Task InvokeAsync(HttpContext context)
         {

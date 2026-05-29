@@ -12,16 +12,27 @@ namespace Anonimizador___API.Application.Services.Auth
 {
     /// <summary>
     /// Servicio de autenticación.
-    /// Valida credenciales contra la base de datos y genera tokens JWT.
+    /// Valida credenciales contra la base de datos y genera tokens JWT firmados con HMAC-SHA256.
+    /// 
+    /// Flujo de autenticación:
+    /// 1. Busca el usuario activo en BD por nombre de usuario
+    /// 2. Verifica la contraseña contra el hash BCrypt almacenado
+    /// 3. Genera un token JWT con claims de identidad y rol
     /// </summary>
     public class AuthService : IAuthService
     {
         private readonly IUserRepository _userRepository;
-        private readonly IConfiguration _configuration;
         private readonly ILogger<AuthService> _logger;
 
+        // Configuración JWT leída una sola vez en el constructor
+        private readonly string _jwtKey;
+        private readonly string _jwtIssuer;
+        private readonly string _jwtAudience;
+        private readonly int _jwtExpirationHours;
+
         /// <summary>
-        /// Inicializa el servicio de autenticación con sus dependencias.
+        /// Inicializa el servicio y valida que la configuración JWT esté completa.
+        /// Lanza <see cref="InvalidOperationException"/> si falta algún valor crítico.
         /// </summary>
         public AuthService(
             IUserRepository userRepository,
@@ -29,8 +40,18 @@ namespace Anonimizador___API.Application.Services.Auth
             ILogger<AuthService> logger)
         {
             _userRepository = userRepository;
-            _configuration = configuration;
             _logger = logger;
+
+            // Validar configuración JWT al iniciar — falla rápido si falta algún valor
+            _jwtKey = configuration["Jwt:Key"]
+                ?? throw new InvalidOperationException("Jwt:Key no está configurado.");
+            _jwtIssuer = configuration["Jwt:Issuer"]
+                ?? throw new InvalidOperationException("Jwt:Issuer no está configurado.");
+            _jwtAudience = configuration["Jwt:Audience"]
+                ?? throw new InvalidOperationException("Jwt:Audience no está configurado.");
+            _jwtExpirationHours = int.TryParse(configuration["Jwt:ExpirationHours"], out var h)
+                ? h
+                : throw new InvalidOperationException("Jwt:ExpirationHours no está configurado o no es un número válido.");
         }
 
         /// <inheritdoc />
@@ -64,25 +85,22 @@ namespace Anonimizador___API.Application.Services.Auth
 
         /// <summary>
         /// Genera un token JWT firmado con los claims del usuario autenticado.
+        /// El token incluye: ID de usuario, nombre, rol, nombre completo y JTI único.
         /// </summary>
-        /// <param name="user">Datos del usuario autenticado.</param>
-        /// <returns>Respuesta con el token JWT y sus metadatos.</returns>
+        /// <param name="user">Datos del usuario autenticado desde la BD.</param>
+        /// <returns>DTO con el token JWT, datos del usuario y fecha de expiración.</returns>
         private LoginResponseDto GenerateToken(UserDto user)
         {
-            var key = _configuration["Jwt:Key"]!;
-            var issuer = _configuration["Jwt:Issuer"]!;
-            var audience = _configuration["Jwt:Audience"]!;
-            var hours = int.Parse(_configuration["Jwt:ExpirationHours"]!);
-
             var securityKey = new SymmetricSecurityKey(
-                Encoding.UTF8.GetBytes(key));
+                Encoding.UTF8.GetBytes(_jwtKey));
 
             var credentials = new SigningCredentials(
                 securityKey,
                 SecurityAlgorithms.HmacSha256);
 
-            var expiresAt = DateTime.UtcNow.AddHours(hours);
+            var expiresAt = DateTime.UtcNow.AddHours(_jwtExpirationHours);
 
+            // Claims que viajan dentro del token — disponibles sin consultar la BD
             var claims = new[]
             {
                 new Claim(JwtRegisteredClaimNames.Sub,        user.UserId.ToString()),
@@ -93,8 +111,8 @@ namespace Anonimizador___API.Application.Services.Auth
             };
 
             var token = new JwtSecurityToken(
-                issuer: issuer,
-                audience: audience,
+                issuer: _jwtIssuer,
+                audience: _jwtAudience,
                 claims: claims,
                 expires: expiresAt,
                 signingCredentials: credentials);

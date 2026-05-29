@@ -5,12 +5,26 @@ namespace Anonimizador___API.CrossCutting
 {
     /// <summary>
     /// Middleware que captura excepciones no manejadas en el pipeline
-    /// y retorna una respuesta JSON estructurada en lugar de un error genérico.
-    /// En desarrollo incluye el stack trace; en producción solo el mensaje.
+    /// y retorna una respuesta JSON estructurada en lugar de un error genérico de ASP.NET.
+    ///
+    /// Mapeo de excepciones a códigos HTTP:
+    /// - <see cref="ArgumentException"/> / <see cref="ArgumentNullException"/> → 400 Bad Request
+    /// - <see cref="UnauthorizedAccessException"/>                             → 401 Unauthorized
+    /// - <see cref="FileNotFoundException"/>                                   → 404 Not Found
+    /// - Cualquier otra excepción                                              → 500 Internal Server Error
+    ///
+    /// En entorno Development incluye el stack trace en el campo "detail".
+    /// En Production ese campo es null para no exponer información interna.
     /// </summary>
     public class ExceptionMiddleware
     {
         private const string CorrelationIdHeader = "X-Correlation-ID";
+
+        // Opciones de serialización reutilizadas — evita recrearlas en cada request
+        private static readonly JsonSerializerOptions JsonOptions = new()
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+        };
 
         private readonly RequestDelegate _next;
         private readonly ILogger<ExceptionMiddleware> _logger;
@@ -55,6 +69,7 @@ namespace Anonimizador___API.CrossCutting
 
         /// <summary>
         /// Construye y escribe la respuesta JSON de error según el tipo de excepción.
+        /// El campo "detail" solo se incluye en Development para no exponer stack traces en producción.
         /// </summary>
         private async Task HandleExceptionAsync(
             HttpContext context,
@@ -63,8 +78,11 @@ namespace Anonimizador___API.CrossCutting
         {
             context.Response.ContentType = "application/json";
 
+            // ArgumentNullException hereda de ArgumentException pero se mapea explícitamente
+            // para mayor claridad — ambas son errores de validación del cliente (400)
             context.Response.StatusCode = ex switch
             {
+                ArgumentNullException => (int)HttpStatusCode.BadRequest,
                 ArgumentException => (int)HttpStatusCode.BadRequest,
                 UnauthorizedAccessException => (int)HttpStatusCode.Unauthorized,
                 FileNotFoundException => (int)HttpStatusCode.NotFound,
@@ -80,12 +98,8 @@ namespace Anonimizador___API.CrossCutting
                 detail = _env.IsDevelopment() ? ex.StackTrace : null
             };
 
-            var json = JsonSerializer.Serialize(response, new JsonSerializerOptions
-            {
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-            });
-
-            await context.Response.WriteAsync(json);
+            await context.Response.WriteAsync(
+                JsonSerializer.Serialize(response, JsonOptions));
         }
     }
 }

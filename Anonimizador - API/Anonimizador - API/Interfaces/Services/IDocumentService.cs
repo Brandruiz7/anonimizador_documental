@@ -5,25 +5,31 @@ namespace Anonimizador___API.Interfaces.Services
 {
     /// <summary>
     /// Contrato para el servicio principal de documentos.
-    /// Orquesta la validación, procesamiento y auditoría del flujo de anonimización.
+    /// Su implementación concreta es <see cref="Services.Documents.DocumentService"/>.
+    ///
+    /// Orquesta el flujo completo: validación → hash → BD → procesamiento → auditoría.
     /// </summary>
     public interface IDocumentService
     {
         /// <summary>
-        /// Recibe un documento, lo anonimiza y retorna el resultado como stream.
+        /// Recibe un documento, lo anonimiza en memoria y retorna el resultado como stream.
+        /// Registra todo el proceso en BD incluyendo auditoría campo por campo.
         /// </summary>
         /// <param name="request">Archivo y datos de las personas a anonimizar.</param>
-        /// <returns>Stream del documento anonimizado, nombre y tipo de contenido.</returns>
+        /// <returns>
+        /// Tupla con el stream del documento anonimizado, nombre de archivo y tipo de contenido.
+        /// El stream debe ser cerrado por el llamador después de usarlo.
+        /// </returns>
         Task<(Stream FileStream, string FileName, string ContentType)> UploadStreamAsync(
             UploadDocumentRequestDto request);
 
         /// <summary>
-        /// Retorna el historial de documentos procesados para el dashboard.
+        /// Retorna el historial completo de documentos procesados para el dashboard.
         /// </summary>
         Task<IEnumerable<DocumentSummaryDto>> GetAllDocumentsAsync();
 
         /// <summary>
-        /// Retorna las métricas del sistema para el dashboard.
+        /// Retorna todas las métricas del sistema agrupadas para el dashboard.
         /// </summary>
         Task<MetricsResponseDto> GetMetricsAsync();
     }

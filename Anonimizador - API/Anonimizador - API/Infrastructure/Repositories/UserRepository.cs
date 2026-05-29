@@ -9,7 +9,10 @@ namespace Anonimizador___API.Infrastructure.Repositories
 {
     /// <summary>
     /// Repositorio de acceso a datos de usuarios del sistema.
-    /// Ejecuta procedimientos almacenados en Oracle mediante Dapper.
+    /// Ejecuta procedimientos almacenados en Oracle XE 21c mediante Dapper.
+    ///
+    /// Responsabilidad única: consultas de autenticación y búsqueda de usuarios.
+    /// La creación y gestión de usuarios se realiza directamente en BD por el administrador.
     /// </summary>
     public class UserRepository : IUserRepository
     {
@@ -33,6 +36,8 @@ namespace Anonimizador___API.Infrastructure.Repositories
             p.AddInput("p_Username", username);
             p.AddCursor("p_ResultSet");
 
+            // QueryFirstOrDefault retorna null si el usuario no existe
+            // — el llamador es responsable de manejar ese caso
             return await connection.QueryFirstOrDefaultAsync<UserDto>(
                 "SP_USER_GET_BY_USERNAME", p,
                 commandType: CommandType.StoredProcedure);
