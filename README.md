@@ -1,6 +1,32 @@
 # 📄 Anonimizador Documental — CGR
 
-Sistema de anonimización de documentos jurídicos desarrollado para la **Contraloría General de la República de Costa Rica**. Reemplaza datos sensibles y personales por etiquetas neutrales, siguiendo la normativa **PRODHAB** sobre datos personales y sensibles.
+Sistema de anonimización de documentos jurídicos desarrollado para la **Contraloría General de la República de Costa Rica**. Reemplaza datos sensibles y personales por etiquetas neutrales, siguiendo la normativa **PRODHAB** sobre protección de datos personales.
+
+---
+
+## 📑 Índice
+
+- [Descripción](#-descripción)
+- [Funcionalidades](#-funcionalidades-principales)
+- [Arquitectura](#-arquitectura)
+- [Tecnologías](#-tecnologías)
+- [Estructura del proyecto](#-estructura-del-proyecto)
+- [Instalación rápida](#-instalación-rápida)
+- [Documentación detallada](#-documentación-detallada)
+- [Autor](#-autor)
+
+---
+
+## 📌 Descripción
+
+El sistema expone una **API REST** desarrollada en **.NET 8** que permite:
+
+- Anonimizar documentos `.docx` y `.pdf` reemplazando datos sensibles por etiquetas neutrales
+- Detectar datos sensibles de forma **manual** o mediante **IA semántica** (Ollama/Mistral o Gemini)
+- Registrar auditoría granular campo por campo de cada anonimización
+- Exponer métricas e historial para monitoreo institucional
+
+El frontend institucional se implementa en **Oracle APEX**, consumiendo esta API mediante requests REST con autenticación JWT.
 
 ---
 
@@ -8,91 +34,68 @@ Sistema de anonimización de documentos jurídicos desarrollado para la **Contra
 
 - 🔐 Autenticación JWT con roles (Admin / Operator)
 - 📄 Anonimización de documentos `.docx` y `.pdf`
-- 🤖 Detección híbrida: **Regex preciso + IA semántica** (Ollama / Mistral)
-- 👥 Soporte para múltiples personas por documento
+- 🤖 Detección híbrida: **Regex preciso + IA semántica** (Ollama/Mistral o Gemini)
+- 👥 Soporte para múltiples personas por documento con variaciones de nombre, cédula y teléfono
 - 🏛️ Campos PRODHAB: datos personales y datos sensibles (cuenta bancaria, condición médica)
-- 📊 Dashboard con historial, métricas y gráficos
-- 🔍 Auditoría granular por campo anonimizado
-- 🌐 Landing page pública de presentación
-- 📱 Interfaz wizard paso a paso
+- 📊 Historial de documentos y métricas para el dashboard
+- 🔍 Auditoría granular por campo anonimizado con hash SHA256
+- 🛡️ Headers de seguridad, rate limiting por IP y CORS configurable
 
 ---
 
 ## 🧠 Arquitectura
 
-### API REST
-
 ```text
-API (Controllers)
+Cliente (Oracle APEX / Bruno / Swagger)
+    ↓  HTTPS + JWT
+API REST — Controllers
     ↓
-CrossCutting (Middleware: Errors, CorrelationId)
+CrossCutting — CorrelationIdMiddleware, ExceptionMiddleware
     ↓
-Application (Services, DTOs, Common)
+Application — Services, DTOs
     ↓
-Interfaces (Contracts)
+Interfaces — Contratos (IDocumentService, IAuthService, etc.)
     ↓
-Infrastructure (Repositories, Data)
+Infrastructure — Repositories, DbConnectionFactory
     ↓
-SQL Server (Stored Procedures)
+Oracle XE 21c — Stored Procedures
 ```
 
-### Frontend Web (MVC)
+### Flujo de anonimización
 
 ```text
-Browser
-    ↓
-Landing / Login / Wizard / Dashboard (Razor Views)
-    ↓
-Controllers (Auth, Home, Upload, Ai, Dashboard, Landing)
-    ↓
-HttpClient → API REST
+1. Cliente envía documento + datos de personas → POST /api/documents/upload
+2. API valida JWT, rol y archivo
+3. Calcula hash SHA256 del original
+4. Registra proceso en BD (estado: PROCESSING)
+5. Anonimiza en memoria según el formato:
+   ├── DOCX → reemplazo en párrafos, tablas, headers, footers, textboxes
+   └── PDF  → renderizado a imagen → redacción por píxeles → reconstrucción
+6. Registra versión ANONYMIZED con hash en BD
+7. Registra auditoría campo por campo
+8. Actualiza estado a ANONYMIZED
+9. Retorna documento como stream para descarga
 ```
 
----
-
-## 🔄 Flujo del sistema
-
-```text
-1. Usuario visita /landing → presentación del sistema
-2. Login valida credenciales contra la API
-3. Token JWT se guarda en cookie cifrada (30 min)
-4. Usuario sube documento y elige modo:
-   a. Manual   → ingresa datos directamente
-   b. IA       → Regex + Ollama detectan automáticamente
-5. Web envía el request a la API con el token
-6. API valida token y rol
-7. API procesa:
-   ├── Valida archivo (.docx o .pdf, tamaño, estructura)
-   ├── Calcula hash SHA256 del original
-   ├── Registra proceso en BD (estado: PROCESSING)
-   ├── Anonimiza en memoria (sin guardar en disco)
-   │   ├── DOCX: párrafos, tablas, headers, footers,
-   │   │         textboxes VML/Drawing, tracking changes
-   │   └── PDF:  redacción por imagen (sin capa de texto)
-   ├── Registra versión ANONYMIZED con hash en BD
-   ├── Registra auditoría campo por campo
-   └── Actualiza estado (ANONYMIZED)
-8. API retorna el documento como stream
-9. Web muestra vista previa (PDF) o mensaje (DOCX)
-10. Usuario descarga el archivo anonimizado
-```
+> ⚠️ El documento nunca se escribe a disco — todo el procesamiento ocurre en RAM.
 
 ---
 
 ## 🧩 Tecnologías
 
-| Capa | Tecnología |
+| Componente | Tecnología |
 |---|---|
 | API | .NET 8, ASP.NET Core Web API |
-| Frontend | .NET 8, ASP.NET Core MVC, Razor |
-| Base de datos | Oracle Database |
-| ORM | Dapper |
+| Base de datos | Oracle XE 21c (Stored Procedures) |
+| ORM | Dapper + OracleDynamicParameters |
 | Documentos Word | OpenXML SDK |
 | Documentos PDF | PdfPig, PdfSharp, PDFtoImage, SkiaSharp |
-| IA | Ollama (Mistral) |
-| Autenticación | JWT Bearer + Cookie Authentication |
+| IA local | Ollama (Mistral) |
+| IA en la nube | Google Gemini API |
+| Autenticación | JWT Bearer (HMAC-SHA256) |
 | Passwords | BCrypt.Net (cost factor 12) |
-| Swagger | Swashbuckle.AspNetCore |
+| Logs | Serilog (consola + archivo rotativo) |
+| Documentación API | Swagger / Swashbuckle |
 
 ---
 
@@ -102,317 +105,79 @@ HttpClient → API REST
 /
 ├── Anonimizador - API/
 │   ├── API/Controllers/
-│   │   ├── AuthController.cs
-│   │   └── DocumentsController.cs
+│   │   ├── AuthController.cs          ← login y generación de JWT
+│   │   └── DocumentsController.cs     ← upload, análisis, historial, métricas
 │   ├── Application/
 │   │   ├── Common/
-│   │   │   ├── PdfLineInfo.cs
-│   │   │   ├── PdfRedactionInfo.cs
-│   │   │   ├── PdfWordInfo.cs
-│   │   │   ├── RegexCatalog.cs
-│   │   │   └── TextAnonymizationEngine.cs
-│   │   ├── DTOs/
-│   │   │   ├── Analysis/DocumentAnalysisDto.cs
-│   │   │   ├── Auth/LoginRequestDto.cs
-│   │   │   ├── Auth/LoginResponseDto.cs
-│   │   │   ├── Auth/UserDto.cs
-│   │   │   ├── Documents/AnonymizationResultDto.cs
-│   │   │   ├── Documents/AnonymizationTargetDto.cs
-│   │   │   ├── Documents/DocumentSummaryDto.cs
-│   │   │   ├── Documents/UploadDocumentRequestDto.cs
-│   │   │   └── Metrics/MetricsDto.cs
+│   │   │   ├── RegexCatalog.cs        ← expresiones regulares compiladas
+│   │   │   ├── TextAnonymizationEngine.cs ← motor de reemplazo de texto
+│   │   │   ├── PdfLineInfo.cs         ← modelo de línea PDF
+│   │   │   ├── PdfRedactionInfo.cs    ← modelo de redacción PDF
+│   │   │   └── PdfWordInfo.cs         ← modelo de palabra PDF
+│   │   ├── DTOs/                      ← objetos de transferencia de datos
 │   │   └── Services/
-│   │       ├── Analysis/DocumentAnalysisService.cs
-│   │       ├── Analysis/OllamaService.cs
-│   │       ├── Auth/AuthService.cs
-│   │       ├── Documents/DocumentService.cs
+│   │       ├── Analysis/
+│   │       │   ├── DocumentAnalysisService.cs ← orquesta Regex + IA
+│   │       │   ├── OllamaService.cs   ← cliente IA local (activo)
+│   │       │   └── GeminiService.cs   ← cliente IA nube (comentado)
+│   │       ├── Auth/AuthService.cs    ← validación BCrypt + generación JWT
+│   │       ├── Documents/DocumentService.cs ← orquesta el flujo completo
 │   │       └── Processors/
-│   │           ├── PdfDocumentProcessor.cs
-│   │           └── WordDocumentProcessor.cs
+│   │           ├── WordDocumentProcessor.cs ← anonimización DOCX
+│   │           └── PdfDocumentProcessor.cs  ← anonimización PDF por imagen
 │   ├── CrossCutting/
-│   │   ├── CorrelationIdMiddleware.cs
-│   │   └── ExceptionMiddleware.cs
-│   ├── Domain/Entities/Document.cs
+│   │   ├── CorrelationIdMiddleware.cs ← asigna X-Correlation-ID a cada request
+│   │   └── ExceptionMiddleware.cs     ← captura excepciones y retorna JSON
 │   ├── Infrastructure/
-│   │   ├── Data/DbConnectionFactory.cs
+│   │   ├── Data/
+│   │   │   ├── DbConnectionFactory.cs       ← fábrica de conexiones Oracle
+│   │   │   └── OracleDynamicParameters.cs   ← parámetros tipados para Dapper
 │   │   └── Repositories/
-│   │       ├── DocumentRepository.cs
-│   │       └── UserRepository.cs
-│   └── Interfaces/
-│       ├── Repositories/
-│       └── Services/
-│
-├── Anonimizador - Web/
-│   ├── Controllers/
-│   │   ├── AiController.cs
-│   │   ├── AuthController.cs
-│   │   ├── DashboardController.cs
-│   │   ├── HomeController.cs
-│   │   ├── LandingController.cs
-│   │   └── UploadController.cs
-│   ├── Models/
-│   │   ├── DashboardViewModel.cs
-│   │   ├── ErrorViewModel.cs
-│   │   ├── LoginViewModel.cs
-│   │   └── MetricsViewModel.cs
-│   └── Views/
-│       ├── Auth/Login.cshtml
-│       ├── Dashboard/Index.cshtml
-│       ├── Home/Index.cshtml
-│       ├── Landing/Index.cshtml
-│       └── Shared/_Layout.cshtml
+│   │       ├── DocumentRepository.cs  ← acceso a datos de documentos
+│   │       └── UserRepository.cs      ← acceso a datos de usuarios
+│   └── Interfaces/                    ← contratos de servicios y repositorios
 │
 └── DB/
-    ├── DocumentAnonymizerDB.sql    ← Script base
-    ├── CHANGELOG.md                ← Historial de migraciones
-    └── Migrations/
-        ├── 001_AddFullNameToUsers.sql
-        └── 002_ExpandAnonymizationFields.sql
+    ├── Oracle Database/
+    │   ├── AnonimizadorDB.sql         ← script base Oracle XE 21c
+    │   └── Consultas.sql              ← consultas de auditoría y verificación
+    └── Sql Server/
+        ├── DocumentAnonymizerDB.sql   ← script base SQL Server (referencia)
+        ├── Files/
+        │   └── SqlServer_CSharp_Files.zip ← archivos C# para SQL Server
+        └── Migrations/
+            ├── 001_AddFullNameToUsers.sql
+            └── 002_ExpandAnonymizationFields.sql
 ```
 
 ---
 
-## 🗄️ Base de datos
-
-### Tablas
-
-| Tabla | Descripción |
-|---|---|
-| `DOCUMENTS` | Metadata de cada documento procesado |
-| `DOCUMENT_VERSIONS` | Versiones del documento (ORIGINAL / ANONYMIZED) |
-| `ANONYMIZED_FIELDS` | Auditoría campo por campo |
-| `PROCESS_STATUS` | Catálogo de estados |
-| `PROCESS_ERRORS` | Registro centralizado de errores |
-| `USERS` | Usuarios del sistema |
-| `ROLES` | Roles (Admin, Operator) |
-
-### Estados del proceso
-
-```text
-1 → UPLOADED
-2 → PROCESSING
-3 → ANONYMIZED
-4 → FAILED
-```
-
-### Migraciones
-
-El proyecto usa un sistema de migraciones manual en `DB/Migrations/`. Cada migración es idempotente — se puede ejecutar múltiples veces sin romper nada. Ver `DB/CHANGELOG.md` para el estado de cada migración.
-
----
-
-## 🔒 Campos de anonimización
-
-### Por persona
-
-| Campo | Etiqueta | Clasificación |
-|---|---|---|
-| Nombre completo | `[Px-Nombre]` | Personal |
-| Identificación | `[Px-Cédula]` | Personal |
-| Correo electrónico | `[Px-Correo]` | Personal |
-| Teléfono | `[Px-Tel]` | Personal |
-| Cargo o puesto | `[Px-Cargo]` | Personal |
-| Dirección | `[Px-Dir]` | Personal |
-| Institución | `[Px-Institución]` | Personal |
-| Cuenta bancaria | `[Px-CuentaBancaria]` | Sensible (PRODHAB) |
-| Condición médica | `[Px-CondiciónMédica]` | Sensible (PRODHAB) |
-| Texto libre | `[Px-Dato]` | Libre |
-
-### Generales del documento
-
-| Campo | Etiqueta |
-|---|---|
-| Número de expediente | `[Expediente]` |
-| Número de oficio | `[N° Oficio]` |
-
-### Variaciones por campo
-
-Se pueden agregar variaciones de formato para Nombre, Cédula y Teléfono. Ejemplo: `1-2345-6789` y su variación `123456789` se reemplazan con la misma etiqueta.
-
----
-
-## 🤖 Motor de detección
-
-### Regex (RegexCatalog)
-Detecta patrones exactos: cédulas costarricenses (`X-XXXX-XXXX`), correos, teléfonos (`XXXX-XXXX`) y nombres.
-
-### IA — Ollama / Mistral
-Análisis semántico del documento completo. Detecta: nombres, cédulas, correos, teléfonos, cargos, direcciones, instituciones, cuentas bancarias y condiciones médicas. Retorna resultados en formato estructurado para mayor robustez.
-
-Los resultados de ambos motores se fusionan evitando duplicados.
-
----
-
-## 🖥️ Motor de anonimización DOCX
-
-| Zona | Cubierta |
-|---|---|
-| Párrafos del cuerpo | ✅ |
-| Tablas | ✅ |
-| Encabezados (Headers) | ✅ |
-| Pies de página (Footers) | ✅ |
-| Textboxes VML | ✅ |
-| Textboxes Drawing | ✅ |
-| Cambios rastreados (ins/del) | ✅ |
-
-## 🖥️ Motor de anonimización PDF
-
-Redacción basada en imagen: el PDF se renderiza a 250 DPI, se aplican rectángulos de redacción sobre los píxeles y se reconstruye el PDF sin capa de texto. Los datos originales no son recuperables.
-
----
-
-## 🔐 Seguridad
-
-- JWT Bearer en la API con validación de issuer, audience y tiempo de vida
-- Cookie cifrada en el Web (HttpOnly, Secure, 30 min)
-- Timer de sesión con warning a los 25 min — persiste entre navegaciones
-- Passwords con BCrypt (cost factor 12)
-- Roles: `Admin`, `Operator`
-- Correlation ID en cada request para trazabilidad
-- Middleware global de manejo de errores con detalle solo en Development
-- Rate limiting por IP: 10 intentos/min en login, 30 requests/min en documentos
-- Páginas de error personalizadas (404, 403, 500)
-- Logs estructurados con Serilog (consola + archivo rotativo diario)
-
----
-
-## ⚙️ Configuración
+## 🚀 Instalación rápida
 
 ### Requisitos
 
 - .NET 8 SDK
-- SQL Server o Oracle XE 21c (ver sección Motores de base de datos)
-- Ollama con Mistral instalado (`ollama pull mistral`)
+- Oracle XE 21c (o SQL Server — ver [documentación de BD](docs/base-de-datos.md))
+- Ollama con Mistral instalado (o API Key de Gemini — ver [configuración de IA](docs/configuracion.md))
 
-### API — `appsettings.json`
-
-Usar `appsettings.example.json` como referencia:
-
-```json
-{
-  "Logging": {
-    "LogLevel": {
-      "Default": "Information",
-      "Microsoft.AspNetCore": "Warning"
-    }
-  },
-  "ConnectionStrings": {
-    "DefaultConnection": "User Id=anonimizador;Password=YOUR_PASSWORD;Data Source=localhost:1521/XEPDB1;"
-  },
-  "Jwt": {
-    "Key": "YOUR_SECRET_KEY_MIN_32_CHARS",
-    "Issuer": "YOUR_ISSUER",
-    "Audience": "YOUR_AUDIENCE",
-    "ExpirationHours": "8"
-  },
-  "Ollama": {
-    "BaseUrl": "YOUR_OLLAMA_URL",
-    "Model": "YOUR_MODEL",
-    "TimeoutSeconds": "120"
-  },
-  "RateLimiting": {
-    "Login": {
-      "PermitLimit": 10,
-      "WindowMinutes": 1
-    },
-    "Documents": {
-      "PermitLimit": 30,
-      "WindowMinutes": 1
-    }
-  },
-  "Serilog": {
-    "MinimumLevel": "Information",
-    "RetainedFileDays": 30
-  },
-  "AllowedHosts": "*"
-}
-```
-
-### Web — `appsettings.json`
-
-```json
-{
-  "Logging": {
-    "LogLevel": {
-      "Default": "Information",
-      "Microsoft.AspNetCore": "Warning"
-    }
-  },
-  "AllowedHosts": "*",
-  "ApiSettings": {
-    "BaseUrl": "https://localhost:YOUR_API_PORT"
-  }
-}
-```
-
-## 🔐 Variables de entorno (Producción)
-
-En producción los secretos se configuran como variables de entorno
-en lugar del `appsettings.json`. .NET lee ambas automáticamente,
-dando prioridad a las variables de entorno.
-
-La convención es reemplazar `:` por `__` (doble guion bajo):
-
-### API
-
-| Variable de entorno | Descripción |
-|---|---|
-| `ConnectionStrings__DefaultConnection` | Cadena de conexión SQL Server |
-| `Jwt__Key` | Clave secreta JWT (mín. 32 caracteres) |
-| `Jwt__Issuer` | Issuer del token |
-| `Jwt__Audience` | Audience del token |
-| `Jwt__ExpirationHours` | Duración del token en horas |
-| `Ollama__BaseUrl` | URL de Ollama |
-| `Ollama__Model` | Modelo a usar (ej. mistral) |
-| `RateLimiting__Login__PermitLimit` | Intentos de login por minuto |
-| `RateLimiting__Documents__PermitLimit` | Requests de documentos por minuto |
-
-### Web
-
-| Variable de entorno | Descripción |
-|---|---|
-| `ApiSettings__BaseUrl` | URL base de la API |
-
-### Ejemplo en Windows (IIS / servidor)
-\```
-setx Jwt__Key "tu_clave_secreta_de_produccion" /M
-setx ConnectionStrings__DefaultConnection "Server=prod-server;..." /M
-\```
-
-### Ejemplo en Linux / Docker
-\```bash
-export Jwt__Key="tu_clave_secreta_de_produccion"
-export ConnectionStrings__DefaultConnection="Server=prod-server;..."
-\```
-
----
-
-## 🚀 Instalación
+### Pasos
 
 ```bash
 # 1. Clonar el repositorio
-git clone https://github.com/Brandruiz7/document-anonymizer
+git clone https://github.com/Brandruiz7/anonimizador_documental
 
-# 2. Configurar appsettings en API y Web
-# (copiar appsettings.example.json → appsettings.json y completar)
+# 2. Configurar appsettings
+# Copiar appsettings.example.json → appsettings.json y completar los valores
 
-# 3. Ejecutar script de BD en SQL Server
-# DB/DocumentAnonymizerDB.sql
+# 3. Ejecutar script de BD en SQL Developer (conectado como anonimizador@XEPDB1)
+# DB/Oracle Database/AnonimizadorDB.sql
 
-# 4. Ejecutar migraciones pendientes
-# DB/Migrations/001_AddFullNameToUsers.sql
-# DB/Migrations/002_ExpandAnonymizationFields.sql
-
-# 5. Iniciar Ollama con Mistral
+# 4. Iniciar Ollama
 ollama serve
 ollama pull mistral
 
-# 6. Correr la API
+# 5. Correr la API
 cd "Anonimizador - API"
-dotnet run
-
-# 7. Correr el Web
-cd "Anonimizador - Web"
 dotnet run
 ```
 
@@ -423,194 +188,22 @@ Usuario:    admin
 Contraseña: Admin123!
 ```
 
-> ⚠️ Cambiar en producción generando un nuevo hash con el endpoint:
+> ⚠️ Cambiar en producción generando un nuevo hash con:
 > `GET /api/auth/generate-hash?password=TuPassword`
 
 ---
 
-## 📊 Auditoría
+## 📚 Documentación detallada
 
-Cada documento genera registros en:
-
-- `DOCUMENTS` — metadata y estado del proceso
-- `DOCUMENT_VERSIONS` — versión anonimizada con hash SHA256
-- `ANONYMIZED_FIELDS` — cada campo reemplazado con valor original, etiqueta y método de detección
-
----
-
-## 🗄️ Motores de base de datos soportados
-
-El sistema soporta dos motores de base de datos. El código C# es el mismo para ambos —
-solo cambian la cadena de conexión, el paquete NuGet, y `DbConnectionFactory.cs`.
-
----
-
-### Opción A — SQL Server
-
-#### Requisitos
-- SQL Server 2019 o superior (Express, Developer o licenciado)
-- SQL Server Management Studio (SSMS) opcional
-
-#### 1. Ejecutar el script base
-Abrir SSMS y ejecutar en orden:
-```
-DB/DocumentAnonymizerDB.sql
-DB/Migrations/001_AddFullNameToUsers.sql
-DB/Migrations/002_ExpandAnonymizationFields.sql
-```
-
-#### 2. Configurar la cadena de conexión
-En `appsettings.json` de la API:
-```json
-"ConnectionStrings": {
-  "DefaultConnection": "Server=.;Database=DocumentAnonymizerDB;Trusted_Connection=True;"
-}
-```
-
-#### 3. Paquete NuGet requerido
-```
-Microsoft.Data.SqlClient
-```
-
-#### 4. `DbConnectionFactory.cs`
-```csharp
-using Microsoft.Data.SqlClient;
-
-public IDbConnection CreateConnection()
-{
-    var connectionString = _config.GetConnectionString("DefaultConnection");
-    return new SqlConnection(connectionString);
-}
-```
-
-#### 5. Repositorios
-Usar parámetros anónimos estándar de Dapper — sin `OracleDynamicParameters`:
-```csharp
-return await connection.ExecuteScalarAsync<int>(
-    "SP_DOCUMENT_PROCESS_INSERT",
-    new { FileName = fileName, ContentType = contentType, ... },
-    commandType: CommandType.StoredProcedure);
-```
-
----
-
-### Opción B — Oracle XE 21c (recomendada para la institución)
-
-Oracle es la opción recomendada para despliegue institucional dado el contrato
-existente con Oracle. Oracle XE 21c es gratuito para desarrollo y producción
-con límites de hardware (2 CPUs, 2 GB RAM para la BD, 12 GB de datos).
-
-#### Requisitos
-- Oracle XE 21c — https://www.oracle.com/database/technologies/xe-downloads.html
-- SQL Developer (opcional) — https://www.oracle.com/tools/downloads/sqldev-downloads.html
-
-#### 1. Crear el esquema
-Conectarse como `sysdba` y ejecutar:
-```sql
-ALTER SESSION SET CONTAINER = XEPDB1;
-CREATE USER anonimizador IDENTIFIED BY "TuPassword123";
-GRANT CONNECT, RESOURCE TO anonimizador;
-GRANT UNLIMITED TABLESPACE TO anonimizador;
-```
-
-#### 2. Configurar el listener
-Si `XEPDB1` no aparece en el listener, abrir CMD como administrador y ejecutar:
-```cmd
-sqlplus / as sysdba
-```
-Dentro de SQL*Plus:
-```sql
-ALTER SYSTEM SET LOCAL_LISTENER = '(ADDRESS=(PROTOCOL=TCP)(HOST=localhost)(PORT=1521))' SCOPE=BOTH;
-ALTER SYSTEM REGISTER;
-EXIT;
-```
-Reiniciar el listener:
-```cmd
-lsnrctl stop
-lsnrctl start
-```
-
-#### 3. Ejecutar el script Oracle
-En SQL Developer conectado como `anonimizador@XEPDB1`, ejecutar con F5:
-```
-DB/DocumentAnonymizerDB_Oracle.sql
-```
-> ⚠️ Antes de ejecutar, reemplazar `REEMPLAZAR_CON_HASH_BCRYPT` con el hash real.
-> Generarlo con: `GET /api/auth/generate-hash?password=Admin123!`
-
-#### 4. Configurar la cadena de conexión
-En `appsettings.json` de la API:
-```json
-"ConnectionStrings": {
-  "DefaultConnection": "User Id=anonimizador;Password=TuPassword;Data Source=localhost:1521/XEPDB1;"
-}
-```
-
-#### 5. Paquete NuGet requerido
-```
-Oracle.ManagedDataAccess.Core
-```
-
-#### 6. `DbConnectionFactory.cs`
-```csharp
-using Oracle.ManagedDataAccess.Client;
-
-public IDbConnection CreateConnection()
-{
-    var connectionString = _config.GetConnectionString("DefaultConnection");
-    return new OracleConnection(connectionString);
-}
-```
-
-#### 7. Repositorios
-Oracle requiere `OracleDynamicParameters` (incluido en `Infrastructure/Data/`) 
-en lugar de los objetos anónimos de Dapper, porque Oracle tipifica los parámetros 
-explícitamente y retorna filas mediante `SYS_REFCURSOR` en lugar de `SELECT` directo:
-```csharp
-var p = new OracleDynamicParameters();
-p.AddInput("p_FileName",   fileName);
-p.AddInput("p_FileSizeKB", fileSizeKb, OracleDbType.Int64);
-p.AddOutput("p_DocumentId", OracleDbType.Int32);
-
-await connection.ExecuteAsync("SP_DOCUMENT_PROCESS_INSERT", p,
-    commandType: CommandType.StoredProcedure);
-
-return p.Get<int>("p_DocumentId");
-```
-
----
-
-### Diferencias clave entre SQL Server y Oracle
-
-| Concepto | SQL Server | Oracle XE |
-|---|---|---|
-| Contenedor | Base de datos (`USE DocumentAnonymizerDB`) | Esquema (`anonimizador@XEPDB1`) |
-| Auto-increment | `IDENTITY(1,1)` | Secuencias + Triggers |
-| Fecha actual | `SYSDATETIME()` | `SYSTIMESTAMP` |
-| Texto largo | `NVARCHAR(MAX)` | `CLOB` |
-| Retorno de filas en SP | `SELECT` directo | `SYS_REFCURSOR` OUT |
-| Parámetros OUT | `ExecuteScalarAsync` con Dapper | `OracleDynamicParameters` |
-| Tipo booleano | `BIT` | `NUMBER(1)` |
-| Scripts BD | `DB/DocumentAnonymizerDB.sql` | `DB/DocumentAnonymizerDB_Oracle.sql` |
-| Paquete NuGet | `Microsoft.Data.SqlClient` | `Oracle.ManagedDataAccess.Core` |
-| Conexión Dapper | `SqlConnection` | `OracleConnection` |
-
----
-
-### Archivos a modificar al cambiar de motor
-
-Si se necesita revertir a SQL Server, los únicos archivos que requieren ajuste son:
-
-| Archivo | Cambio requerido |
+| Documento | Descripción |
 |---|---|
-| `appsettings.json` (API) | Cambiar cadena de conexión (ver Opción A) |
-| `Infrastructure/Data/DbConnectionFactory.cs` | Reemplazar `OracleConnection` por `SqlConnection` |
-| `Infrastructure/Repositories/DocumentRepository.cs` | Reemplazar `OracleDynamicParameters` por objetos anónimos Dapper |
-| `Infrastructure/Repositories/UserRepository.cs` | Reemplazar `OracleDynamicParameters` por objetos anónimos Dapper |
-
-> Las versiones originales para SQL Server están disponibles como descarga
-> en el archivo `DB/SQL Server/SqlServer_CSharp_Files.zip` del repositorio,
-> o en los releases del proyecto bajo el tag `v1.0-sqlserver`.
+| [Anonimización manual](docs/anonimizacion-manual.md) | Flujo paso a paso del modo manual — cómo se construyen los targets y se aplican los reemplazos |
+| [Anonimización con IA](docs/anonimizacion-ia.md) | Detección híbrida Regex + Ollama/Gemini, prompt estructurado y parseo de respuesta |
+| [Procesamiento PDF](docs/procesamiento-pdf.md) | Pipeline PDF→imagen→redacción por píxeles→PDF, coordenadas y etiquetas en rectángulos |
+| [Procesamiento DOCX](docs/procesamiento-docx.md) | Zonas cubiertas, OpenXML SDK y motor de reemplazo de texto |
+| [Base de datos](docs/base-de-datos.md) | Tablas, Stored Procedures, Oracle vs SQL Server, hash SHA256 y consultas de auditoría |
+| [Seguridad](docs/seguridad.md) | JWT, BCrypt, rate limiting, headers de seguridad y CORS |
+| [Configuración](docs/configuracion.md) | appsettings, variables de entorno, motores de IA y cadenas de conexión |
 
 ---
 
