@@ -166,6 +166,23 @@ builder.WebHost.ConfigureKestrel(serverOptions =>
 });
 
 // =============================================
+// CORS
+// =============================================
+// Orígenes permitidos — agregar el dominio de Oracle APEX en producción
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("ApiPolicy", policy =>
+    {
+        policy
+            .WithOrigins(
+                builder.Configuration.GetSection("Cors:AllowedOrigins")
+                    .Get<string[]>() ?? Array.Empty<string>())
+            .AllowAnyHeader()
+            .AllowAnyMethod();
+    });
+});
+
+// =============================================
 // PIPELINE
 // =============================================
 
@@ -183,6 +200,27 @@ app.UseMiddleware<ExceptionMiddleware>();
 app.UseRateLimiter();
 
 app.UseHttpsRedirection();
+
+// Headers de seguridad — protección contra ataques comunes
+app.Use(async (context, next) =>
+{
+    // Evita que el navegador ejecute contenido en contextos no deseados
+    context.Response.Headers["X-Content-Type-Options"] = "nosniff";
+    // Evita que la respuesta sea embebida en iframes de otros dominios
+    context.Response.Headers["X-Frame-Options"] = "DENY";
+    // Fuerza HTTPS en navegadores por 1 año
+    context.Response.Headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains";
+    // Restringe información del referrer al origen
+    context.Response.Headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
+    // Deshabilita funcionalidades del navegador no necesarias
+    context.Response.Headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()";
+    // Content Security Policy — solo permite recursos del mismo origen
+    context.Response.Headers["Content-Security-Policy"] = "default-src 'self'";
+
+    await next();
+});
+
+app.UseCors("ApiPolicy");
 
 // Authentication debe ir siempre antes de Authorization
 app.UseAuthentication();
