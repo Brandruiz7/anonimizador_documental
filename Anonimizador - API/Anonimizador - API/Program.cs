@@ -188,18 +188,23 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
+// Swagger solo en desarrollo
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
+// HTTPS redirect solo en producción
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
+
 // Middlewares propios — el orden es importante
 app.UseMiddleware<CorrelationIdMiddleware>();
 app.UseMiddleware<ExceptionMiddleware>();
 app.UseRateLimiter();
-
-app.UseHttpsRedirection();
 
 // Headers de seguridad — protección contra ataques comunes
 app.Use(async (context, next) =>

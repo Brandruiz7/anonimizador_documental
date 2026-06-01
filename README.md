@@ -86,6 +86,7 @@ Oracle XE 21c — Stored Procedures
 | Componente | Tecnología |
 |---|---|
 | API | .NET 8, ASP.NET Core Web API |
+| Frontend institucional | Oracle APEX 26.x |
 | Base de datos | Oracle XE 21c (Stored Procedures) |
 | ORM | Dapper + OracleDynamicParameters |
 | Documentos Word | OpenXML SDK |
@@ -105,7 +106,7 @@ Oracle XE 21c — Stored Procedures
 /
 ├── Anonimizador - API/
 │   ├── API/Controllers/
-│   │   ├── AuthController.cs          ← login y generación de JWT
+│   │   ├── AuthController.cs          ← login, generación de JWT y generate-hash
 │   │   └── DocumentsController.cs     ← upload, análisis, historial, métricas
 │   ├── Application/
 │   │   ├── Common/
@@ -140,6 +141,7 @@ Oracle XE 21c — Stored Procedures
 └── DB/
     ├── Oracle Database/
     │   ├── AnonimizadorDB.sql         ← script base Oracle XE 21c
+    │   ├── Package.sql                ← package PL/SQL de autenticación APEX
     │   └── Consultas.sql              ← consultas de auditoría y verificación
     └── Sql Server/
         ├── DocumentAnonymizerDB.sql   ← script base SQL Server (referencia)
@@ -159,8 +161,9 @@ Oracle XE 21c — Stored Procedures
 - .NET 8 SDK
 - Oracle XE 21c (o SQL Server — ver [documentación de BD](docs/base-de-datos.md))
 - Ollama con Mistral instalado (o API Key de Gemini — ver [configuración de IA](docs/configuracion.md))
+- Oracle APEX 26.x con ORDS (para el frontend institucional)
 
-### Pasos
+### Pasos — API
 
 ```bash
 # 1. Clonar el repositorio
@@ -181,6 +184,26 @@ cd "Anonimizador - API"
 dotnet run
 ```
 
+Swagger disponible en `https://localhost:7108/swagger` (solo en Development).
+
+### Pasos — Oracle APEX
+
+```bash
+# 1. Arrancar Oracle XE y ORDS (ver docs/oracle-apex.md para el detalle)
+net start OracleServiceXE
+net start OracleXETNSListener
+# java -jar ords.war serve
+
+# 2. Configurar el ACL de red como SYS en XEPDB1
+# DB/Oracle Database/Package.sql — sección ACL
+
+# 3. Ejecutar el package PL/SQL como anonimizador@XEPDB1
+# DB/Oracle Database/Package.sql
+
+# 4. Crear la app en App Builder con tema VITA CGR y Authentication Scheme custom
+# Ver guía completa: docs/oracle-apex.md
+```
+
 ### Usuario administrador por defecto
 
 ```
@@ -188,8 +211,7 @@ Usuario:    admin
 Contraseña: Admin123!
 ```
 
-> ⚠️ Cambiar en producción generando un nuevo hash con:
-> `GET /api/auth/generate-hash?password=TuPassword`
+Generar el hash de una contraseña nueva con: `GET /api/auth/generate-hash?password=TuPassword`
 
 ---
 
@@ -197,6 +219,7 @@ Contraseña: Admin123!
 
 | Documento | Descripción |
 |---|---|
+| [Oracle APEX](docs/oracle-apex.md) | Configuración del frontend institucional: tema CGR, ACL de red, autenticación JWT, navegación y consideraciones de producción |
 | [Anonimización manual](docs/anonimizacion-manual.md) | Flujo paso a paso del modo manual — cómo se construyen los targets y se aplican los reemplazos |
 | [Anonimización con IA](docs/anonimizacion-ia.md) | Detección híbrida Regex + Ollama/Gemini, prompt estructurado y parseo de respuesta |
 | [Procesamiento PDF](docs/procesamiento-pdf.md) | Pipeline PDF→imagen→redacción por píxeles→PDF, coordenadas y etiquetas en rectángulos |

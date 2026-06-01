@@ -1,0 +1,177 @@
+/*******************************************************************************
+ Archivo    : Package.sql
+ Descripción: Package de autenticación que conecta Oracle APEX con la API .NET.
+              Implementa el Custom Authentication Scheme del sistema.
+ Autor      : Ruiz
+ Fecha      : 2026
+
+ INSTRUCCIONES DE EJECUCIÓN:
+ 1. Conectarse en SQL Developer como: anonimizador@XEPDB1
+ 2. Ejecutar el Package Spec
+ 3. Verificar que el SELECT de comprobación muestre STATUS = VALID
+ 4. Ejecutar el Package Body
+*******************************************************************************/
+
+
+-- =============================================
+-- PACKAGE SPEC
+-- =============================================
+
+/*
+ * pkg_auth_anonimizador
+ * Package de autenticación de usuarios para Oracle APEX.
+ *
+ * authenticate_user
+ * Valida las credenciales del usuario contra la API .NET y almacena
+ * el token JWT en el session state de APEX.
+ *
+ * IN  p_username  VARCHAR2  Username ingresado en el formulario de login
+ * IN  p_password  VARCHAR2  Contraseña ingresada en texto plano
+ *
+ * Retorna TRUE  si las credenciales son válidas y el token fue recibido.
+ * Retorna FALSE si la autenticación falla o ocurre cualquier error.
+ *
+ * Cuando retorna TRUE escribe los siguientes Application Items:
+ *   G_JWT_TOKEN      Token JWT firmado
+ *   G_USER_ROLE      Rol del usuario: 'Admin' u 'Operator'
+ *   G_USER_FULLNAME  Nombre completo del usuario
+ */
+CREATE OR REPLACE PACKAGE pkg_auth_anonimizador AS
+    FUNCTION authenticate_user(
+        p_username IN VARCHAR2,
+        p_password IN VARCHAR2
+    ) RETURN BOOLEAN;
+END pkg_auth_anonimizador;
+/
+
+
+-- =============================================
+-- Comprobación — debe mostrar STATUS = VALID
+-- =============================================
+SELECT object_name, object_type, status
+FROM user_objects
+WHERE object_name = 'PKG_AUTH_ANONIMIZADOR';
+
+
+-- =============================================
+-- PACKAGE BODY
+-- =============================================
+CREATE OR REPLACE PACKAGE BODY pkg_auth_anonimizador AS
+
+    c_api_base_url CONSTANT VARCHAR2(200) := 'http://127.0.0.1:5255';
+
+    FUNCTION authenticate_user(
+        p_username IN VARCHAR2,
+        p_password IN VARCHAR2
+    ) RETURN BOOLEAN IS
+        l_req      UTL_HTTP.REQ;
+        l_resp     UTL_HTTP.RESP;
+        l_body     VARCHAR2(4000);
+        l_buffer   VARCHAR2(32767);
+        l_response VARCHAR2(32767);
+        l_token    VARCHAR2(4000);
+        l_role     VARCHAR2(50);
+        l_fullname VARCHAR2(200);
+    BEGIN
+        -- Construir el body JSON con UPPER() en el username para comparación
+        -- case-insensitive en SP_USER_GET_BY_USERNAME
+        l_body := '{"username":' || apex_json.stringify(UPPER(p_username))
+               || ',"password":' || apex_json.stringify(p_password) || '}';
+
+        l_req := UTL_HTTP.BEGIN_REQUEST(
+            url    => c_api_base_url || '/api/auth/login',
+            method => 'POST'
+        );
+        UTL_HTTP.SET_HEADER(l_req, 'Content-Type',   'application/json');
+        UTL_HTTP.SET_HEADER(l_req, 'Content-Length',  LENGTHB(l_body));
+        UTL_HTTP.WRITE_TEXT(l_req, l_body);
+
+        l_resp := UTL_HTTP.GET_RESPONSE(l_req);
+
+        BEGIN
+            LOOP
+                UTL_HTTP.READ_TEXT(l_resp, l_buffer, 32767);
+                l_response := l_response || l_buffer;
+            END LOOP;
+        EXCEPTION
+            WHEN UTL_HTTP.END_OF_BODY THEN NULL;
+        END;
+
+        UTL_HTTP.END_RESPONSE(l_resp);
+
+        IF l_resp.status_code != 200 THEN
+            apex_debug.error('Login fallido — Status: %s', l_resp.status_code);
+            RETURN FALSE;
+        END IF;
+
+        apex_json.parse(l_response);
+        l_token    := apex_json.get_varchar2(p_path => 'token');
+        l_role     := apex_json.get_varchar2(p_path => 'role');
+        l_fullname := apex_json.get_varchar2(p_path => 'fullName');
+
+        IF l_token IS NULL THEN
+            apex_debug.error('Sin token: %s', l_response);
+            RETURN FALSE;
+        END IF;
+
+        apex_util.set_session_state('G_JWT_TOKEN',     l_token);
+        apex_util.set_session_state('G_USER_ROLE',     l_role);
+        apex_util.set_session_state('G_USER_FULLNAME', l_fullname);
+
+        RETURN TRUE;
+
+    EXCEPTION
+        WHEN OTHERS THEN
+            apex_debug.error('Excepción en authenticate_user: %s', SQLERRM);
+            RETURN FALSE;
+    END authenticate_user;
+
+END pkg_auth_anonimizador;
+/
+
+
+-- =============================================
+-- Comprobación final — deben aparecer dos filas VALID:
+-- PKG_AUTH_ANONIMIZADOR  PACKAGE       VALID
+-- PKG_AUTH_ANONIMIZADOR  PACKAGE BODY  VALID
+-- =============================================
+SELECT object_name, object_type, status
+FROM user_objects
+WHERE object_name = 'PKG_AUTH_ANONIMIZADOR';
+
+
+-- =============================================
+-- TEST DE CONECTIVIDAD
+-- =============================================
+/*
+ * Verifica que UTL_HTTP puede alcanzar la API y que las credenciales
+ * proporcionadas son válidas. Ejecutar desde SQL Developer como anonimizador@XEPDB1.
+ */
+SET SERVEROUTPUT ON
+DECLARE
+    l_request  UTL_HTTP.REQ;
+    l_response UTL_HTTP.RESP;
+    l_text     VARCHAR2(32767);
+    l_body     VARCHAR2(200) := '{"username":"ADMIN","password":"TuPassword"}';
+BEGIN
+    l_request := UTL_HTTP.BEGIN_REQUEST(
+        url    => 'http://127.0.0.1:5255/api/auth/login',
+        method => 'POST'
+    );
+    UTL_HTTP.SET_HEADER(l_request, 'Content-Type',   'application/json');
+    UTL_HTTP.SET_HEADER(l_request, 'Content-Length',  LENGTH(l_body));
+    UTL_HTTP.WRITE_TEXT(l_request, l_body);
+
+    l_response := UTL_HTTP.GET_RESPONSE(l_request);
+    DBMS_OUTPUT.PUT_LINE('Status: ' || l_response.status_code);
+
+    UTL_HTTP.READ_TEXT(l_response, l_text, 32767);
+    DBMS_OUTPUT.PUT_LINE('Response: ' || SUBSTR(l_text, 1, 500));
+
+    UTL_HTTP.END_RESPONSE(l_response);
+EXCEPTION
+    WHEN OTHERS THEN
+        DBMS_OUTPUT.PUT_LINE('Error genérico: ' || SQLERRM);
+        DBMS_OUTPUT.PUT_LINE('Detalle:        ' || UTL_HTTP.GET_DETAILED_SQLERRM);
+END;
+/

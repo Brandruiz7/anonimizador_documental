@@ -54,5 +54,24 @@ namespace Anonimizador___API.API.Controllers
             var response = await _authService.LoginAsync(request);
             return Ok(response);
         }
+
+        /// <summary>
+        /// Genera un hash BCrypt para una contraseña en texto plano.
+        /// Usar para crear o actualizar la columna PasswordHash en la tabla USERS.
+        /// </summary>
+        /// <param name="password">Contraseña en texto plano a hashear.</param>
+        /// <returns>Hash BCrypt listo para insertar en la base de datos.</returns>
+        /// <response code="200">Hash generado correctamente.</response>
+        /// <response code="400">El parámetro password está vacío.</response>
+        [HttpGet("generate-hash")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public IActionResult GenerateHash([FromQuery] string password)
+        {
+            if (string.IsNullOrWhiteSpace(password))
+                return BadRequest(new { error = "El parámetro password es requerido." });
+
+            return Ok(new { hash = BCrypt.Net.BCrypt.HashPassword(password, workFactor: 12) });
+        }
     }
 }
