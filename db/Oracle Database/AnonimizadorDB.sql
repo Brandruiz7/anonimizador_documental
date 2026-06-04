@@ -178,6 +178,15 @@ CREATE TABLE USERS (
     CONSTRAINT FK_USERS_ROLES    FOREIGN KEY (RoleId) REFERENCES ROLES(RoleId)
 );
 
+CREATE TABLE wizard_session_files (
+    session_id   VARCHAR2(100)  NOT NULL,
+    filename     VARCHAR2(500)  NOT NULL,
+    mime_type    VARCHAR2(200)  DEFAULT 'application/octet-stream',
+    file_content BLOB           NOT NULL,
+    created_at   TIMESTAMP      DEFAULT SYSTIMESTAMP,
+    CONSTRAINT pk_wsf PRIMARY KEY (session_id)
+);
+
 
 -- =============================================
 -- SECUENCIAS

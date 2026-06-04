@@ -30,12 +30,11 @@ Usar `appsettings.example.json` como referencia. El archivo real nunca se sube a
     "Login":     { "PermitLimit": 10, "WindowMinutes": 1 },
     "Documents": { "PermitLimit": 30, "WindowMinutes": 1 }
   },
-  "Cors": {
-    "AllowedOrigins": [
-      "https://tu-dominio-apex.oracle.com",
-      "https://localhost:7108"
-    ]
-  },
+  // CORS: Solo necesario si el browser llama directamente a la API.
+  // No aplica cuando todos los llamados van vía APEX server-side (UTL_HTTP).
+  // "Cors": {
+  //   "AllowedOrigins": [ "http://localhost:8080" ]
+  // },
   "Serilog": {
     "MinimumLevel": "Information",
     "RetainedFileDays": 30
@@ -43,13 +42,13 @@ Usar `appsettings.example.json` como referencia. El archivo real nunca se sube a
 }
 ```
 
+> **Nota sobre CORS:** en esta arquitectura el browser nunca llama directamente a la API — todos los requests van server-side desde Oracle APEX via `UTL_HTTP` en el package `PKG_WIZARD_ANON`. Por ese motivo `AddCors()` y `app.UseCors()` fueron eliminados de `Program.cs` y la sección `Cors` en `appsettings` está comentada. Si en el futuro se necesita exponer la API directamente al browser (ej: una app web externa), descomentar ambas secciones y agregar los orígenes permitidos.
+
 ---
 
 ## Variables de entorno (Producción)
 
 En producción los secretos se configuran como variables de entorno. .NET les da prioridad sobre `appsettings.json`. La convención es reemplazar `:` por `__` (doble guion bajo):
-
-### API
 
 | Variable | Descripción |
 |---|---|
@@ -64,8 +63,6 @@ En producción los secretos se configuran como variables de entorno. .NET les da
 | `Gemini__Model` | Modelo Gemini (ej. gemini-2.0-flash) |
 | `RateLimiting__Login__PermitLimit` | Intentos de login por minuto |
 | `RateLimiting__Documents__PermitLimit` | Requests de documentos por minuto |
-| `Cors__AllowedOrigins__0` | Primer origen CORS permitido |
-| `Cors__AllowedOrigins__1` | Segundo origen CORS permitido |
 
 ### Ejemplo en Windows
 ```cmd

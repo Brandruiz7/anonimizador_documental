@@ -166,23 +166,6 @@ builder.WebHost.ConfigureKestrel(serverOptions =>
 });
 
 // =============================================
-// CORS
-// =============================================
-// Orígenes permitidos — agregar el dominio de Oracle APEX en producción
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("ApiPolicy", policy =>
-    {
-        policy
-            .WithOrigins(
-                builder.Configuration.GetSection("Cors:AllowedOrigins")
-                    .Get<string[]>() ?? Array.Empty<string>())
-            .AllowAnyHeader()
-            .AllowAnyMethod();
-    });
-});
-
-// =============================================
 // PIPELINE
 // =============================================
 
@@ -224,8 +207,6 @@ app.Use(async (context, next) =>
 
     await next();
 });
-
-app.UseCors("ApiPolicy");
 
 // Authentication debe ir siempre antes de Authorization
 app.UseAuthentication();
