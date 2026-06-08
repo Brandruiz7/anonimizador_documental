@@ -162,7 +162,40 @@ Ver `DB/Oracle Database/pkg_wizard_anon.sql`. Gestiona todo el flujo del wizard 
 
 **Por qué `wizard_session_files`:** APEX elimina los archivos de `apex_application_temp_files` al terminar el request del submit (cuando el usuario pasa del Paso 1 al Paso 2). Al copiar el archivo a `wizard_session_files` en el proceso "Ir a Paso 2", el archivo queda disponible cuando el usuario presiona "Anonimizar Documento" en el Paso 2.
 
-**Por qué `UTL_HTTP` en lugar de `APEX_WEB_SERVICE`:** `APEX_WEB_SERVICE.MAKE_REST_REQUEST` es un package del schema `APEX_260100`. Cuando lo llama código en `ANONIMIZADOR`, Oracle verifica el ACL contra el schema owner de `APEX_WEB_SERVICE` (`APEX_260100`), no contra `ANONIMIZADOR`. Usar `UTL_HTTP` directamente ejecuta en el contexto de `ANONIMIZADOR` (AUTHID DEFINER), donde el ACL sí está configurado.
+## Por qué se usa `UTL_HTTP` en lugar de `APEX_WEB_SERVICE`
+
+`APEX_WEB_SERVICE.MAKE_REST_REQUEST` es un subprograma del schema `APEX_260100`.
+Cuando código del schema `ANONIMIZADOR` lo invoca, Oracle evalúa el ACL de red
+contra el schema **propietario del subprograma** (`APEX_260100`), no contra
+`ANONIMIZADOR`. Esto ocurre porque los packages de APEX se compilan con
+`AUTHID CURRENT_USER`, por lo que la identidad efectiva durante la llamada
+es `APEX_260100` — un schema de sistema donde no tenemos control sobre el ACL.
+
+`UTL_HTTP` en cambio se compila con `AUTHID DEFINER`, lo que significa que Oracle
+evalúa el ACL contra el schema que **compiló el package** — en este caso
+`ANONIMIZADOR`, donde el permiso está correctamente otorgado para `127.0.0.1`
+(y para el host de GCP en producción).
+
+Migrar a `APEX_WEB_SERVICE` requeriría otorgar permisos de red directamente al
+schema `APEX_260100`, lo cual no es recomendable en un entorno institucional
+porque ese schema es compartido por todas las aplicaciones del workspace y
+ampliaría la superficie de ataque de forma innecesaria.
+
+Adicionalmente, `UTL_HTTP` cubre todos los casos de uso del sistema:
+
+| Necesidad | Soporte en `UTL_HTTP` |
+|---|---|
+| `multipart/form-data` con archivo BLOB | ✅ `WRITE_RAW` en chunks |
+| Respuesta binaria (PDF/DOCX anonimizado) | ✅ `READ_RAW` en chunks |
+| Respuesta JSON (análisis IA, login) | ✅ `READ_TEXT` + `APEX_JSON` |
+| Header `Authorization: Bearer` | ✅ `SET_HEADER` |
+| Timeout configurable | ✅ `SET_TRANSFER_TIMEOUT` |
+
+**Decisión de diseño:** se mantiene `UTL_HTTP` en todos los packages del sistema.
+No se planea migrar a `APEX_WEB_SERVICE`. Si en el futuro Oracle deprecara
+`UTL_HTTP`, la migración sería directa dado que toda la lógica HTTP está
+encapsulada en las funciones privadas `send_request_text` y `send_request_binary`
+dentro de `pkg_wizard_anon`.
 
 ---
 

@@ -1,23 +1,57 @@
 /******************************************************************************
- Archivo    : pkg_wizard_anon_body.sql
- Descripción: SPEC + BODY de pkg_wizard_anon con Modo IA implementado.
-              Solo ejecutar el BODY si el Spec ya está en la BD y no cambió.
-              Si cambia la firma de algún procedimiento, ejecutar ambos.
+ Archivo    : 03_pkg_wizard_anon.sql
+ Descripción: Package del Wizard de Anonimización — URL de la API y retención
+              de archivos leídas desde anonimizador_config.
+ Autor      : Ruiz
  Esquema    : ANONIMIZADOR @ XEPDB1
 
+ CAMBIOS respecto a la versión anterior:
+   - Eliminada la constante c_api_base hardcodeada del SPEC
+   - Eliminado el INTERVAL '2' HOUR hardcodeado en clean_old_results
+   - Agregada función privada get_config() que lee anonimizador_config
+   - La URL se resuelve con get_config('API_BASE_URL')
+   - La retención se resuelve con get_config('SESSION_RETENTION_H')
+
  INSTRUCCIONES:
-   1. Ejecutar el bloque SPEC
-   2. Verificar STATUS = VALID
-   3. Ejecutar el bloque BODY
-   4. Verificar STATUS = VALID en ambos objetos
+   1. Ejecutar primero 01_anonimizador_config.sql
+   2. Ejecutar TYPE → TYPE TABLE si no existen todavía
+   3. Ejecutar el bloque SPEC
+   4. Verificar STATUS = VALID
+   5. Ejecutar el bloque BODY
+   6. Verificar STATUS = VALID en ambos objetos
 ******************************************************************************/
 
 /* ===========================================================================
-   PACKAGE SPEC  (actualizado: analyze_document_ia recibe p_file_name)
+   TYPE — solo si no existen (idempotente)
+   =========================================================================== */
+CREATE OR REPLACE TYPE t_person_data AS OBJECT (
+    fullname       VARCHAR2(500),
+    identification VARCHAR2(200),
+    email          VARCHAR2(500),
+    phone_number   VARCHAR2(200),
+    position       VARCHAR2(500),
+    address        VARCHAR2(1000),
+    institution    VARCHAR2(500),
+    bank_account   VARCHAR2(200),
+    medical_cond   VARCHAR2(500),
+    free_text      VARCHAR2(4000),
+    name_vars      VARCHAR2(4000),   -- c011 — variantes de nombre
+    id_vars        VARCHAR2(4000),   -- c012 — variantes de cédula
+    phone_vars     VARCHAR2(4000),   -- c013 — variantes de teléfono
+    bank_vars      VARCHAR2(4000),   -- c014 — variantes de cuenta bancaria
+    medical_vars   VARCHAR2(4000)    -- c015 — variantes de condición médica
+);
+/
+
+CREATE OR REPLACE TYPE t_persons_list AS TABLE OF t_person_data;
+/
+
+/* ===========================================================================
+   PACKAGE SPEC
+   Nota: c_api_base se eliminó del spec — la URL ahora la gestiona
+   get_config() en el body, igual que en pkg_auth_anonimizador.
    =========================================================================== */
 CREATE OR REPLACE PACKAGE pkg_wizard_anon AS
-
-    c_api_base CONSTANT VARCHAR2(100) := 'http://127.0.0.1:5255';
 
     -- Llama a POST /api/documents/analyze y devuelve el JSON crudo
     FUNCTION analyze_document (
@@ -55,15 +89,15 @@ CREATE OR REPLACE PACKAGE pkg_wizard_anon AS
         p_mime_type OUT VARCHAR2
     );
 
-    -- Limpia wizard_session_files y wizard_result_files con más de 2 horas
+    -- Limpia wizard_session_files y wizard_result_files según SESSION_RETENTION_H
     PROCEDURE clean_old_results;
 
 END pkg_wizard_anon;
 /
 
-/* ===========================================================================
-   VERIFICAR SPEC
-   =========================================================================== */
+-- =============================================
+-- Verificar SPEC
+-- =============================================
 SELECT object_name, object_type, status
 FROM   user_objects
 WHERE  object_name = 'PKG_WIZARD_ANON'
@@ -75,6 +109,26 @@ ORDER BY object_type;
 CREATE OR REPLACE PACKAGE BODY pkg_wizard_anon AS
 
     c_crlf CONSTANT VARCHAR2(2) := chr(13) || chr(10);
+
+    -- -------------------------------------------------------------------------
+    -- get_config — lee un valor de anonimizador_config por clave.
+    -- Mismo patrón que pkg_auth_anonimizador para consistencia.
+    -- -------------------------------------------------------------------------
+    FUNCTION get_config(p_key IN VARCHAR2) RETURN VARCHAR2 IS
+        l_value anonimizador_config.config_value%TYPE;
+    BEGIN
+        SELECT config_value
+        INTO   l_value
+        FROM   anonimizador_config
+        WHERE  config_key = p_key;
+
+        RETURN l_value;
+    EXCEPTION
+        WHEN NO_DATA_FOUND THEN
+            raise_application_error(-20099,
+                'Configuración no encontrada: ' || p_key ||
+                '. Verificar tabla anonimizador_config.');
+    END get_config;
 
     -- -------------------------------------------------------------------------
     -- Helpers de construcción multipart
@@ -164,8 +218,7 @@ CREATE OR REPLACE PACKAGE BODY pkg_wizard_anon AS
         l_body_len := dbms_lob.getlength(p_body);
         l_req := utl_http.begin_request(p_url, 'POST', 'HTTP/1.1');
         utl_http.set_header(l_req, 'Authorization',  'Bearer ' || p_token);
-        utl_http.set_header(l_req, 'Content-Type',     'multipart/form-data; boundary=' || p_boundary);
-        utl_http.set_body_charset(l_req, 'UTF8'); 
+        utl_http.set_header(l_req, 'Content-Type',   'multipart/form-data; boundary=' || p_boundary);
         utl_http.set_header(l_req, 'Content-Length',  l_body_len);
         WHILE l_offset <= l_body_len LOOP
             l_chunk_size := least(16384, l_body_len - l_offset + 1);
@@ -211,8 +264,7 @@ CREATE OR REPLACE PACKAGE BODY pkg_wizard_anon AS
         l_body_len := dbms_lob.getlength(p_body);
         l_req := utl_http.begin_request(p_url, 'POST', 'HTTP/1.1');
         utl_http.set_header(l_req, 'Authorization',  'Bearer ' || p_token);
-        utl_http.set_header(l_req, 'Content-Type',     'multipart/form-data; boundary=' || p_boundary);
-        utl_http.set_body_charset(l_req, 'UTF8'); 
+        utl_http.set_header(l_req, 'Content-Type',   'multipart/form-data; boundary=' || p_boundary);
         utl_http.set_header(l_req, 'Content-Length',  l_body_len);
         WHILE l_offset <= l_body_len LOOP
             l_chunk_size := least(16384, l_body_len - l_offset + 1);
@@ -269,7 +321,7 @@ CREATE OR REPLACE PACKAGE BODY pkg_wizard_anon AS
         append_text(l_body, '--' || l_boundary || '--' || c_crlf);
 
         l_status := send_request_text(
-            p_url      => c_api_base || '/api/documents/analyze',
+            p_url      => get_config('API_BASE_URL') || '/api/documents/analyze',
             p_token    => p_jwt_token,
             p_boundary => l_boundary,
             p_body     => l_body,
@@ -303,7 +355,7 @@ CREATE OR REPLACE PACKAGE BODY pkg_wizard_anon AS
     --   identification   → c002    bankAccount      → c008
     --   email            → c003    medicalCondition → c009
     --   phoneNumber      → c004    (free_text)      → c010  siempre NULL
-    --   position         → c005    nameVariations[] → c011  aplanado con comas
+    --   position         → c005    nameVariations[] → c011  aplanado con pipes
     --   address          → c006    c012-c015        → NULL  usuario agrega si quiere
     -- -------------------------------------------------------------------------
     PROCEDURE analyze_document_ia (
@@ -341,7 +393,8 @@ CREATE OR REPLACE PACKAGE BODY pkg_wizard_anon AS
             l_vars_str := '';
             l_sep      := '';
 
-            -- Aplanar nameVariations[] → "var1, var2, var3" para c011
+            -- Aplanar nameVariations[] → "var1|var2|var3" para c011
+            -- El separador | es el que usa add_variations al enviar a la API
             BEGIN
                 l_vars_count := apex_json.get_count(p_path => l_base || '.nameVariations');
                 FOR j IN 1..l_vars_count LOOP
@@ -352,7 +405,7 @@ CREATE OR REPLACE PACKAGE BODY pkg_wizard_anon AS
                                    p_path => l_base || '.nameVariations[' || j || ']'));
                         IF l_v IS NOT NULL AND l_v != 'NONE' THEN
                             l_vars_str := l_vars_str || l_sep || l_v;
-                            l_sep      := '|'; 
+                            l_sep      := '|';
                         END IF;
                     END;
                 END LOOP;
@@ -371,12 +424,12 @@ CREATE OR REPLACE PACKAGE BODY pkg_wizard_anon AS
                 p_c007 => apex_json.get_varchar2(p_path => l_base || '.institution'),
                 p_c008 => apex_json.get_varchar2(p_path => l_base || '.bankAccount'),
                 p_c009 => apex_json.get_varchar2(p_path => l_base || '.medicalCondition'),
-                p_c010 => NULL,                    -- free_text: solo modo manual
-                p_c011 => NULLIF(l_vars_str, ''), -- nameVariations aplanadas
-                p_c012 => NULL,                    -- id_vars
-                p_c013 => NULL,                    -- phone_vars
-                p_c014 => NULL,                    -- bank_vars
-                p_c015 => NULL                     -- medical_vars
+                p_c010 => NULL,                   -- free_text: solo modo manual
+                p_c011 => NULLIF(l_vars_str, ''), -- nameVariations separadas por |
+                p_c012 => NULL,                   -- id_vars
+                p_c013 => NULL,                   -- phone_vars
+                p_c014 => NULL,                   -- bank_vars
+                p_c015 => NULL                    -- medical_vars
             );
         END LOOP;
 
@@ -460,7 +513,7 @@ CREATE OR REPLACE PACKAGE BODY pkg_wizard_anon AS
         append_text(l_body, '--' || l_boundary || '--' || c_crlf);
 
         l_status := send_request_binary(
-            p_url       => c_api_base || '/api/documents/upload',
+            p_url       => get_config('API_BASE_URL') || '/api/documents/upload',
             p_token     => p_jwt_token,
             p_boundary  => l_boundary,
             p_body      => l_body,
@@ -520,15 +573,23 @@ CREATE OR REPLACE PACKAGE BODY pkg_wizard_anon AS
     END get_result_blob;
 
     -- -------------------------------------------------------------------------
-    -- clean_old_results — limpia registros con más de 2 horas
+    -- clean_old_results — limpia registros según SESSION_RETENTION_H
     -- -------------------------------------------------------------------------
     PROCEDURE clean_old_results IS
+        l_hours NUMBER;
     BEGIN
+        -- Leer retención desde configuración (default 2 si no existe)
+        BEGIN
+            l_hours := TO_NUMBER(get_config('SESSION_RETENTION_H'));
+        EXCEPTION
+            WHEN OTHERS THEN l_hours := 2;
+        END;
+
         DELETE FROM wizard_result_files
-        WHERE  created_at < systimestamp - INTERVAL '2' HOUR;
+        WHERE  created_at < systimestamp - (l_hours / 24);
 
         DELETE FROM wizard_session_files
-        WHERE  created_at < systimestamp - INTERVAL '2' HOUR;
+        WHERE  created_at < systimestamp - (l_hours / 24);
 
         COMMIT;
     EXCEPTION
@@ -539,9 +600,11 @@ END pkg_wizard_anon;
 /
 
 /* ===========================================================================
-   VERIFICAR FINAL — los cuatro deben aparecer VALID
+   VERIFICAR FINAL
    =========================================================================== */
 SELECT object_name, object_type, status
 FROM   user_objects
-WHERE  object_name IN ('PKG_WIZARD_ANON', 'T_PERSON_DATA', 'T_PERSONS_LIST', 'WIZARD_RESULT_FILES')
+WHERE  object_name IN ('PKG_WIZARD_ANON', 'PKG_AUTH_ANONIMIZADOR',
+                       'T_PERSON_DATA', 'T_PERSONS_LIST',
+                       'WIZARD_RESULT_FILES', 'ANONIMIZADOR_CONFIG')
 ORDER BY object_type, object_name;

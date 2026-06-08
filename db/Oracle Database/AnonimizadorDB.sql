@@ -178,7 +178,7 @@ CREATE TABLE USERS (
     CONSTRAINT FK_USERS_ROLES    FOREIGN KEY (RoleId) REFERENCES ROLES(RoleId)
 );
 
-CREATE TABLE wizard_session_files (
+CREATE TABLE WIZARD_SESSION_FILES (
     session_id   VARCHAR2(100)  NOT NULL,
     filename     VARCHAR2(500)  NOT NULL,
     mime_type    VARCHAR2(200)  DEFAULT 'application/octet-stream',
