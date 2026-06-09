@@ -4,6 +4,13 @@ using Anonimizador___API.Interfaces.Repositories;
 using Anonimizador___API.Interfaces.Services;
 using DocumentFormat.OpenXml.Packaging;
 using System.Security.Cryptography;
+using PDFtoImage;
+using PdfSharpCore.Drawing;
+using PdfSharpCore.Pdf;
+using PdfSharpCore.Pdf.IO;
+using SkiaSharp;
+using UglyToad.PdfPig.AcroForms.Fields;
+using PdfPigDocument = UglyToad.PdfPig.PdfDocument;
 
 namespace Anonimizador___API.Application.Services.Documents
 {
@@ -161,6 +168,12 @@ namespace Anonimizador___API.Application.Services.Documents
                 var processor = _processors.FirstOrDefault(p => p.CanProcess(extension))
                     ?? throw new InvalidOperationException(
                         $"No hay procesador disponible para {extension}.");
+
+                // Si el PDF tiene campos AcroForm (formulario rellenable),
+                // aplanarlo antes de procesar para que PdfPig pueda leer
+                // los valores como texto estático durante la redacción.
+                if (extension == ".pdf")
+                    fileBytes = FlattenAcroFormIfNeeded(fileBytes);
 
                 var result = await processor.ProcessAsync(fileBytes, targets);
 
@@ -328,5 +341,82 @@ namespace Anonimizador___API.Application.Services.Documents
         /// <inheritdoc />
         public async Task<MetricsResponseDto> GetMetricsAsync()
             => await _repository.GetMetricsAsync();
+
+
+        /// <summary>
+        /// Anteriormente aplanaba PDFs con AcroForm antes de procesarlos.
+        /// Ya no es necesario — PdfDocumentProcessor extrae los campos AcroForm
+        /// directamente mediante ExtractAcroFormWords() en BuildRedactions.
+        /// Se mantiene el método para no romper la firma, pero retorna los bytes sin cambios.
+        /// </summary>
+        private byte[] FlattenAcroFormIfNeeded(byte[] fileBytes) => fileBytes;
+
+        /// <summary>
+        /// Extrae los campos AcroForm de texto con valor, página y coordenadas.
+        /// Usa GetFieldsForPage para asociar cada campo a su página correctamente.
+        /// Solo procesa AcroTextField — los checkboxes y combos no contienen
+        /// datos personales relevantes para anonimización.
+        /// </summary>
+        private static List<AcroFieldInfo> ExtractAcroFieldValues(byte[] fileBytes)
+        {
+            var result = new List<AcroFieldInfo>();
+
+            using var stream = new MemoryStream(fileBytes);
+            using var pdf = PdfPigDocument.Open(stream);
+
+            if (!pdf.TryGetForm(out var form) || form?.Fields == null)
+                return result;
+
+            for (int pageNum = 1; pageNum <= pdf.NumberOfPages; pageNum++)
+            {
+                var fieldsOnPage = form.GetFieldsForPage(pageNum);
+
+                foreach (var field in fieldsOnPage)
+                {
+                    try
+                    {
+                        if (field is not AcroTextField textField) continue;
+
+                        var value = textField.Value ?? string.Empty;
+                        if (string.IsNullOrWhiteSpace(value)) continue;
+
+                        if (!textField.Bounds.HasValue) continue;
+
+                        var bounds = textField.Bounds.Value;
+
+                        result.Add(new AcroFieldInfo
+                        {
+                            Value = value,
+                            PageNumber = pageNum,
+                            X = bounds.Left,
+                            Y = bounds.Bottom,
+                            FieldWidth = bounds.Width,
+                            FieldHeight = bounds.Height
+                        });
+                    }
+                    catch
+                    {
+                        // Campo individual no procesable — continuar
+                    }
+                }
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Datos de un campo AcroForm de texto con valor y coordenadas en puntos PDF.
+        /// Solo se usa durante la inyección de texto — no se persiste.
+        /// </summary>
+        private sealed class AcroFieldInfo
+        {
+            public string Value { get; set; } = string.Empty;
+            public int PageNumber { get; set; }
+            public double X { get; set; }
+            public double Y { get; set; }
+            public double FieldWidth { get; set; }
+            public double FieldHeight { get; set; }
+        }
+
     }
 }

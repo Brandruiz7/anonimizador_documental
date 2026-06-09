@@ -107,6 +107,21 @@ Cada redacción tiene:
 
 ---
 
+## Soporte para PDFs con campos AcroForm
+
+Los formularios institucionales (INS, CCSS, CGR) usan campos AcroForm
+interactivos cuyos valores no están en la capa de texto estático del PDF.
+
+El sistema los maneja en dos niveles:
+
+- **Análisis IA** (`ExtractTextFromPdf`): lee los campos con `TryGetForm`
+  y los concatena al texto extraído antes de enviarlo a Mistral.
+- **Redacción** (`BuildRedactions`): convierte los campos AcroForm en
+  `PdfWordInfo` con sus coordenadas reales mediante `ExtractAcroFormWords`,
+  integrándolos al pool de palabras antes de buscar los valores a redactar.
+
+---
+
 ## Ver también
 
 - [Procesamiento DOCX](procesamiento-docx.md)

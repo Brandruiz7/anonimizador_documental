@@ -7,6 +7,7 @@ using PdfSharpCore.Drawing;
 using PdfSharpCore.Pdf;
 using SkiaSharp;
 using System.Text;
+using UglyToad.PdfPig.AcroForms.Fields;
 using PdfPigDocument = UglyToad.PdfPig.PdfDocument;
 
 namespace Anonimizador___API.Application.Services.Processors
@@ -192,6 +193,8 @@ namespace Anonimizador___API.Application.Services.Processors
         /// <summary>
         /// Construye la lista de redacciones detectando los datos sensibles en el PDF.
         /// Aplica búsqueda en tres niveles: líneas agrupadas, palabras globales y palabra individual.
+        /// Para PDFs con campos AcroForm (formularios rellenables), extrae los valores
+        /// directamente desde los campos y los agrega al pool de palabras antes de buscar.
         /// </summary>
         private List<PdfRedactionInfo> BuildRedactions(
             byte[] fileBytes,
@@ -202,6 +205,31 @@ namespace Anonimizador___API.Application.Services.Processors
             var lines = ExtractLines(fileBytes);
             var allWordsByPage = ExtractAllWordsByPage(fileBytes);
 
+            // Extraer palabras de campos AcroForm e inyectarlas en el pool
+            // de palabras y líneas para que BuildRedactions las encuentre igual
+            // que cualquier otro texto del documento
+            var acroWords = ExtractAcroFormWords(fileBytes);
+
+            foreach (var (pageNum, words) in acroWords)
+            {
+                // Agregar al diccionario de palabras por página
+                if (allWordsByPage.TryGetValue(pageNum, out var existingWords))
+                    existingWords.AddRange(words);
+                else
+                    allWordsByPage[pageNum] = words;
+
+                // Agregar como líneas independientes para que el Nivel 1 también las encuentre
+                foreach (var word in words)
+                {
+                    lines.Add(new PdfLineInfo
+                    {
+                        PageNumber = pageNum,
+                        Text = word.Text,
+                        Words = new List<PdfWordInfo> { word }
+                    });
+                }
+            }
+
             foreach (var target in targets)
             {
                 var label = $"P{target.PersonIndex + 1}";
@@ -209,24 +237,24 @@ namespace Anonimizador___API.Application.Services.Processors
                 var fieldMappings = new List<(string? Value, string Replacement, string FieldType)>
                 {
                     // Datos personales
-                    (target.FullName,          $"[{label}-Nombre]",          $"{label}-Nombre"),
-                    (target.Identification,    $"[{label}-Cédula]",           $"{label}-Cédula"),
-                    (target.Email,             $"[{label}-Correo]",           $"{label}-Correo"),
-                    (target.PhoneNumber,       $"[{label}-Tel]",              $"{label}-Tel"),
-                    (target.Position,          $"[{label}-Cargo]",            $"{label}-Cargo"),
-                    (target.Address,           $"[{label}-Dir]",              $"{label}-Dir"),
-                    (target.Institution,       $"[{label}-Institución]",      $"{label}-Institución"),
-
+                    (target.FullName,         $"[{label}-Nombre]",         $"{label}-Nombre"),
+                    (target.Identification,   $"[{label}-Cédula]",          $"{label}-Cédula"),
+                    (target.Email,            $"[{label}-Correo]",          $"{label}-Correo"),
+                    (target.PhoneNumber,      $"[{label}-Tel]",             $"{label}-Tel"),
+                    (target.Position,         $"[{label}-Cargo]",           $"{label}-Cargo"),
+                    (target.Address,          $"[{label}-Dir]",             $"{label}-Dir"),
+                    (target.Institution,      $"[{label}-Institución]",     $"{label}-Institución"),
+ 
                     // Datos sensibles
-                    (target.BankAccount,       $"[{label}-CuentaBancaria]",   $"{label}-CuentaBancaria"),
-                    (target.MedicalCondition,  $"[{label}-CondiciónMédica]",  $"{label}-CondiciónMédica"),
-
+                    (target.BankAccount,      $"[{label}-CuentaBancaria]",  $"{label}-CuentaBancaria"),
+                    (target.MedicalCondition, $"[{label}-CondiciónMédica]", $"{label}-CondiciónMédica"),
+ 
                     // Texto libre
-                    (target.FreeText,          $"[{label}-Dato]",             $"{label}-Dato"),
-
+                    (target.FreeText,         $"[{label}-Dato]",            $"{label}-Dato"),
+ 
                     // Datos generales del documento
-                    (target.CaseNumber,        "[Expediente]",                "Expediente"),
-                    (target.OfficeNumber,      "[N° Oficio]",                 "Oficio")
+                    (target.CaseNumber,       "[Expediente]",               "Expediente"),
+                    (target.OfficeNumber,     "[N° Oficio]",                "Oficio")
                 };
 
                 foreach (var (value, replacement, fieldType) in fieldMappings)
@@ -256,7 +284,6 @@ namespace Anonimizador___API.Application.Services.Processors
                         r.OriginalText.Equals(value, StringComparison.OrdinalIgnoreCase));
 
                     // Nivel 2: búsqueda en todas las palabras de la página
-                    // Captura texto en negrita que PdfPig agrupa por separado
                     if (!found)
                     {
                         foreach (var (pageNum, pageWords) in allWordsByPage)
@@ -268,15 +295,12 @@ namespace Anonimizador___API.Application.Services.Processors
                         }
                     }
 
-                    // Las direcciones, datos sensibles y datos generales
-                    // no se buscan por palabra individual
                     if (isAddress || isSensitive) continue;
 
                     found = redactions.Any(r =>
                         r.OriginalText.Equals(value, StringComparison.OrdinalIgnoreCase));
 
                     // Nivel 3: búsqueda por palabra individual — solo para nombres
-                    // Cubre casos donde el nombre está en negrita y fragmentado en líneas distintas
                     if (!found && isName && value.Contains(' '))
                     {
                         var nameWords = value.Split(' ', StringSplitOptions.RemoveEmptyEntries);
@@ -289,7 +313,7 @@ namespace Anonimizador___API.Application.Services.Processors
 
                                 var wordMatch = pageWords.FirstOrDefault(w =>
                                     w.Text.TrimEnd(',', '.', ';', ':')
-                                          .Equals(nameWord, StringComparison.OrdinalIgnoreCase));
+                                         .Equals(nameWord, StringComparison.OrdinalIgnoreCase));
 
                                 if (wordMatch == null) continue;
 
@@ -308,7 +332,6 @@ namespace Anonimizador___API.Application.Services.Processors
                 }
             }
 
-            // Post-procesamiento: fusionar redacciones adyacentes del mismo tipo
             return MergeAdjacentRedactions(redactions);
         }
 
@@ -543,6 +566,96 @@ namespace Anonimizador___API.Application.Services.Processors
             }
 
             return new List<PdfWordInfo>();
+        }
+
+        /// <summary>
+        /// Extrae los campos AcroForm de texto con valor y los convierte en PdfWordInfo
+        /// usando las coordenadas del campo como bounding box.
+        /// Esto permite que BuildRedactions los encuentre igual que texto estático.
+        ///
+        /// Se agrupa por página para integrarse directamente con allWordsByPage y lines.
+        /// </summary>
+        private static Dictionary<int, List<PdfWordInfo>> ExtractAcroFormWords(byte[] fileBytes)
+        {
+            var result = new Dictionary<int, List<PdfWordInfo>>();
+
+            try
+            {
+                using var stream = new MemoryStream(fileBytes);
+                using var pdf = PdfPigDocument.Open(stream);
+
+                if (!pdf.TryGetForm(out var form) || form?.Fields == null)
+                    return result;
+
+                for (int pageNum = 1; pageNum <= pdf.NumberOfPages; pageNum++)
+                {
+                    var fieldsOnPage = form.GetFieldsForPage(pageNum);
+
+                    foreach (var field in fieldsOnPage)
+                    {
+                        try
+                        {
+                            if (field is not AcroTextField textField) continue;
+
+                            var value = textField.Value ?? string.Empty;
+                            if (string.IsNullOrWhiteSpace(value)) continue;
+
+                            if (!textField.Bounds.HasValue) continue;
+
+                            var bounds = textField.Bounds.Value;
+
+                            if (!result.ContainsKey(pageNum))
+                                result[pageNum] = new List<PdfWordInfo>();
+
+                            // Cada campo se convierte en un PdfWordInfo independiente.
+                            // Si el valor tiene espacios (ej: "Brandon José"), se agrega
+                            // también como palabras individuales para que el Nivel 3 las encuentre.
+                            result[pageNum].Add(new PdfWordInfo
+                            {
+                                PageNumber = pageNum,
+                                Text = value,
+                                X = bounds.Left,
+                                Y = bounds.Bottom,
+                                Width = bounds.Width,
+                                Height = bounds.Height
+                            });
+
+                            // Palabras individuales para nombres compuestos en campos separados
+                            if (value.Contains(' '))
+                            {
+                                var parts = value.Split(' ',
+                                    StringSplitOptions.RemoveEmptyEntries);
+
+                                // Distribuir el ancho del campo entre las palabras
+                                var partWidth = bounds.Width / parts.Length;
+
+                                for (int i = 0; i < parts.Length; i++)
+                                {
+                                    result[pageNum].Add(new PdfWordInfo
+                                    {
+                                        PageNumber = pageNum,
+                                        Text = parts[i],
+                                        X = bounds.Left + (i * partWidth),
+                                        Y = bounds.Bottom,
+                                        Width = partWidth,
+                                        Height = bounds.Height
+                                    });
+                                }
+                            }
+                        }
+                        catch
+                        {
+                            // Campo individual no procesable — continuar
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                // PDF sin AcroForm o no procesable — retornar vacío
+            }
+
+            return result;
         }
     }
 }

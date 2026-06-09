@@ -206,38 +206,49 @@ CREATE OR REPLACE PACKAGE BODY pkg_wizard_anon AS
         p_body     IN  BLOB,
         p_response OUT CLOB
     ) RETURN NUMBER IS
-        l_req        utl_http.req;
-        l_resp       utl_http.resp;
-        l_status     NUMBER;
-        l_offset     INTEGER := 1;
-        l_chunk_size INTEGER := 16384;
-        l_raw_chunk  RAW(16384);
-        l_body_len   INTEGER;
-        l_text_buf   VARCHAR2(32767);
+        l_req          utl_http.req;
+        l_resp         utl_http.resp;
+        l_status       NUMBER;
+        l_offset       INTEGER := 1;
+        l_chunk_size   INTEGER := 16384;
+        -- RAW separados: uno para enviar (16384) y otro para leer (8192)
+        -- Se separan porque utl_i18n.raw_to_char con UTF-8 puede expandir
+        -- hasta 4x, y 8192 bytes RAW → máx 32768 chars VARCHAR2 (justo al límite)
+        l_send_chunk   RAW(16384);
+        l_recv_chunk   RAW(8192);
+        l_body_len     INTEGER;
     BEGIN
         l_body_len := dbms_lob.getlength(p_body);
         l_req := utl_http.begin_request(p_url, 'POST', 'HTTP/1.1');
         utl_http.set_header(l_req, 'Authorization',  'Bearer ' || p_token);
         utl_http.set_header(l_req, 'Content-Type',   'multipart/form-data; boundary=' || p_boundary);
         utl_http.set_header(l_req, 'Content-Length',  l_body_len);
+ 
+        -- Enviar el body en chunks de 16384 bytes
         WHILE l_offset <= l_body_len LOOP
             l_chunk_size := least(16384, l_body_len - l_offset + 1);
-            l_raw_chunk  := dbms_lob.substr(p_body, l_chunk_size, l_offset);
-            utl_http.write_raw(l_req, l_raw_chunk);
+            l_send_chunk := dbms_lob.substr(p_body, l_chunk_size, l_offset);
+            utl_http.write_raw(l_req, l_send_chunk);
             l_offset := l_offset + l_chunk_size;
         END LOOP;
+ 
         l_resp   := utl_http.get_response(l_req);
         l_status := l_resp.status_code;
         p_response := empty_clob();
         dbms_lob.createtemporary(p_response, TRUE);
+ 
+        -- Leer respuesta en chunks de 8192 bytes y convertir a UTF-8 explícitamente
+        -- para preservar tildes y caracteres especiales independiente del NLS del servidor
         LOOP
             BEGIN
-                utl_http.read_text(l_resp, l_text_buf, 32767);
-                dbms_lob.append(p_response, l_text_buf);
+                utl_http.read_raw(l_resp, l_recv_chunk, 8192);
+                dbms_lob.append(p_response,
+                    TO_CLOB(utl_i18n.raw_to_char(l_recv_chunk, 'AL32UTF8')));
             EXCEPTION
                 WHEN utl_http.end_of_body THEN EXIT;
             END;
         END LOOP;
+ 
         utl_http.end_response(l_resp);
         RETURN l_status;
     EXCEPTION

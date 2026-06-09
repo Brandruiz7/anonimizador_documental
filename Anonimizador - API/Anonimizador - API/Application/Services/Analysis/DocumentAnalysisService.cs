@@ -114,6 +114,8 @@ namespace Anonimizador___API.Application.Services.Analysis
 
         /// <summary>
         /// Extrae texto de un PDF agrupando palabras por línea.
+        /// También extrae los valores de campos de formulario AcroForm (PDFs rellenables)
+        /// para cubrir formularios institucionales como los del INS o la CCSS.
         /// </summary>
         private string ExtractTextFromPdf(byte[] bytes)
         {
@@ -122,6 +124,7 @@ namespace Anonimizador___API.Application.Services.Analysis
 
             var sb = new StringBuilder();
 
+            // ── Texto estático — párrafos, tablas, encabezados ───────────────
             foreach (var page in pdf.GetPages())
             {
                 var lineGroups = page.GetWords()
@@ -136,6 +139,49 @@ namespace Anonimizador___API.Application.Services.Analysis
 
                     sb.AppendLine(lineText);
                 }
+            }
+
+            // ── Campos de formulario AcroForm (PDFs rellenables) ─────────────
+            // Cubre formularios institucionales donde los datos se ingresan en
+            // campos interactivos y no quedan como texto plano extraíble con GetWords().
+            try
+            {
+                if (pdf.TryGetForm(out var form) && form?.Fields != null)
+                {
+                    sb.AppendLine();
+                    sb.AppendLine("=== CAMPOS DEL FORMULARIO ===");
+
+                    foreach (var field in form.Fields)
+                    {
+                        try
+                        {
+                            // Nombre del campo (T)
+                            var fieldName = string.Empty;
+                            if (field.Dictionary.TryGet(
+                                    UglyToad.PdfPig.Tokens.NameToken.T,
+                                    out UglyToad.PdfPig.Tokens.IToken tToken))
+                                fieldName = tToken.ToString()?.Trim('(', ')') ?? string.Empty;
+
+                            // Valor del campo (V)
+                            var fieldValue = string.Empty;
+                            if (field.Dictionary.TryGet(
+                                    UglyToad.PdfPig.Tokens.NameToken.V,
+                                    out UglyToad.PdfPig.Tokens.IToken vToken))
+                                fieldValue = vToken.ToString()?.Trim('(', ')') ?? string.Empty;
+
+                            if (!string.IsNullOrWhiteSpace(fieldValue))
+                                sb.AppendLine($"{fieldName}: {fieldValue}");
+                        }
+                        catch
+                        {
+                            // Campo individual no parseable — continuar con el siguiente
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                // El PDF no tiene AcroForm o no es parseable — no afecta el texto estático
             }
 
             return sb.ToString();
